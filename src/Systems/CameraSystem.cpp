@@ -191,28 +191,11 @@ namespace glr
     _on_resize = Application::GetInstance().GetEventBus().sink<Event::Resize>().connect<&CameraSystem::OnResize>(this);
   }
 
-  auto CameraSystem::GetActiveCamera() -> entt::entity
-  {
-    auto [_, reg] = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene();
-
-    auto view = reg.view<Component::Camera,
-                         Component::ActiveCamera,
-                         Component::Transform,
-                         Component::Projection>();
-
-    if (view.size_hint() == 0)
-    {
-      return entt::null;
-    }
-
-    return *view.begin();
-  }
-
   auto CameraSystem::OnResize(Event::Resize const& e) -> void
   {
-    auto [_, reg] = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene();
-
-    auto cam = GetActiveCamera();
+    auto& scene = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene();
+    auto& reg   = scene.registry;
+    auto cam    = scene.GetActiveCamera();
 
     if (cam == entt::null)
     {

@@ -26,6 +26,8 @@
 #include "Components/Components.hpp"
 
 #include <fstream>
+#include <glm/ext/quaternion_trigonometric.hpp>
+#include <glm/trigonometric.hpp>
 #include <memory>
 
 namespace glr
@@ -36,7 +38,7 @@ namespace glr
     Setup();
     {
       auto& window = ServiceLocator::GetInstance().Get<WindowService>();
-      auto& reg    = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene().scene;
+      auto& reg    = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene().registry;
 
       auto dummy_cam = reg.create();
       reg.emplace<Component::Camera>(dummy_cam);
@@ -44,10 +46,20 @@ namespace glr
       reg.emplace<Component::Transform>(dummy_cam);
       reg.emplace<Component::Projection>(dummy_cam);
 
-      auto dummy_entity = reg.create();
-      reg.emplace<Component::Transform>(dummy_entity);
-      auto& mesh_asset = reg.emplace<Component::MeshAsset>(dummy_entity);
+      auto dummy_entity1 = reg.create();
+      reg.emplace<Component::Transform>(dummy_entity1);
+      auto& mesh_asset = reg.emplace<Component::MeshAsset>(dummy_entity1);
       mesh_asset.tag = "FlightHelmet";
+
+      auto dummy_entity2 = reg.create();
+      auto& transform2  = reg.emplace<Component::Transform>(dummy_entity2);
+      auto& mesh_asset2 = reg.emplace<Component::MeshAsset>(dummy_entity2);
+      mesh_asset2.tag = "FlightHelmet";
+      transform2.position = {3.0, -5.0f, -1.0f};
+      transform2.rotation = 
+          transform2.rotation 
+        * glm::angleAxis(glm::radians(30.0f), glm::vec3(1.0f, 0.0f, 0.0f))
+        * glm::angleAxis(glm::radians(48.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
       while (not window.ShouldClose())     
       {

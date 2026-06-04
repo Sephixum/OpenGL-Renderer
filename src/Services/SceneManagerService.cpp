@@ -1,4 +1,5 @@
 #include "SceneManagerService.hpp"
+#include "Components/Components.hpp"
 
 #include <entt/entt.hpp>
 
@@ -11,9 +12,9 @@ namespace glr
 
   auto SceneManagerService::OnShutdown() -> void {}
 
-  auto SceneManagerService::GetActiveScene() -> SceneRef
+  auto SceneManagerService::GetActiveScene() -> Scene&
   {
-    if (_active_scene.second == nullptr)
+    if (_active_scene == nullptr)
     {
       if (_scenes.size() == 0)
       {
@@ -21,21 +22,38 @@ namespace glr
       }
       else
       {
-        return {_scenes.begin()->first, _scenes.begin()->second} ;
+        return _scenes.begin()->second;
       }
     }
-    else return {_active_scene.first, *_active_scene.second};
+    else return *_active_scene;
   }
 
-  auto SceneManagerService::CreateScene(std::string_view name) -> SceneRef
+  auto SceneManagerService::CreateScene(std::string_view name) -> Scene&
   {
-    auto& scene = *_scenes.emplace(name, Scene{}).first;
-    return {scene.first, scene.second};
+    auto name_str = std::string{name};
+    _scenes[name_str] = Scene{};
+    return _scenes[name_str];
   }
 
-  auto SceneManagerService::SetActiveScene(SceneRef scene) -> void
+  auto SceneManagerService::SetActiveScene(Scene& scene) -> void
   {
-    _active_scene = {scene.name, &scene.scene};
+    _active_scene = &scene;
+  }
+
+  auto Scene::GetActiveCamera() -> entt::entity
+  {
+
+    auto view = registry.view<Component::Camera,
+                              Component::ActiveCamera,
+                              Component::Transform,
+                              Component::Projection>();
+
+    if (view.size_hint() == 0)
+    {
+      return entt::null;
+    }
+
+    return *view.begin();
   }
 
 }

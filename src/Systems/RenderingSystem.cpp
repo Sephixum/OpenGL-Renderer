@@ -24,32 +24,8 @@
 #include <unordered_map>
 #include <entt/entt.hpp>
 
-namespace 
-{
-
-  struct SubMeshKey 
-  {
-    std::string tag{};
-    std::size_t sub_idx{};
-    auto operator<=>(SubMeshKey const&) const = default;
-  };
-
-  struct SubMeshKeyHash
-  {
-    auto operator()(SubMeshKey const& k) const noexcept -> std::size_t
-    {
-      std::size_t h1 = std::hash<std::string>{}(k.tag);
-      std::size_t h2 = std::hash<std::size_t>{}(k.sub_idx);
-      return h1 ^ (h2 << 1);
-    }
-  };
-
-}
-
-
 namespace glr
 {
-
 
   RenderingSystem::RenderingSystem()
     : _vao{"Dummy VertexArray"}
@@ -79,18 +55,16 @@ namespace glr
 
   auto RenderingSystem::UpdateCameraBuffer() -> void
   {
-    auto& reg  = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene().scene;
-    auto  view = reg.view<Component::ActiveCamera,
-                          Component::Camera,
-                          Component::Projection,
-                          Component::Transform>();
+    auto& scene = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene();
+    auto& reg   = scene.registry;
+    auto cam    = scene.GetActiveCamera();
 
-    if (std::ranges::distance(view) == 0)
+    if (cam == entt::null)
     {
       return;
     }
 
-    auto [entity, _, projection, transform] = *view.each().begin();
+    auto [projection, transform] = reg.get<Component::Projection, Component::Transform>(cam);
 
     auto view_mat = glm::inverse(transform.GetMatrix());
     auto proj_mat = projection.GetMatrix();
@@ -104,7 +78,7 @@ namespace glr
     static constexpr auto range = std::views::iota;
 
     auto& mesh_manager = ServiceLocator::GetInstance().Get<MeshManagerService>();
-    auto  [_, reg]     = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene();
+    auto& reg          = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene().registry;
 
     auto view = reg.view<Component::MeshAsset, Component::Transform>();
 
@@ -113,7 +87,21 @@ namespace glr
       return;
     }
 
-    std::unordered_map<SubMeshKey, std::vector<InstanceData>, SubMeshKeyHash> grouped = {};
+    struct SubMeshKey 
+    {
+      std::string_view tag = {};
+      std::size_t sub_idx  = {};
+      auto operator<=>(SubMeshKey const&) const = default;
+    };
+
+    auto sub_mesh_key_hash_fn = [](SubMeshKey const& k) static -> std::size_t
+    {
+      std::size_t h1 = std::hash<std::string_view>{}(k.tag);
+      std::size_t h2 = std::hash<std::size_t>{}(k.sub_idx);
+      return h1 ^ (h2 << 1);
+    };
+
+    auto grouped = std::unordered_map<SubMeshKey, std::vector<InstanceData>, decltype(sub_mesh_key_hash_fn)>{};
 
     for (auto [entity, mesh, transform] : view.each())
     {
@@ -140,18 +128,18 @@ namespace glr
     _indirect_buffer.Clear();
     _instance_buffer.Clear();
 
-    for (auto const& [key, transforms] : grouped)
+    for (auto const& [key, model_matrices] : grouped)
     {
-      auto const& mesh_views = mesh_manager.GetMeshData(key.tag);
+      auto const  mesh_views = mesh_manager.GetMeshData(key.tag);
       auto const& submesh    = mesh_views[key.sub_idx];
 
       auto const base_instance = static_cast<std::uint32_t>(_instance_buffer.Size());
-      _instance_buffer.Append(transforms);
+      _instance_buffer.Append(model_matrices);
 
       auto cmd = DrawIndirectCommand
       {
         .count          = submesh.index_count,
-        .instance_count = static_cast<std::uint32_t>(transforms.size()),
+        .instance_count = static_cast<std::uint32_t>(model_matrices.size()),
         .first_index    = submesh.index_offset,
         .base_vertex    = static_cast<std::int32_t>(submesh.vertex_offset),
         .base_instance  = base_instance
@@ -174,7 +162,7 @@ namespace glr
     _gbuffer_pipeline.Activate();
 
     ::glMultiDrawElementsIndirect(
-        GL_TRIANGLES,
+        GL_LINES,
         GL_UNSIGNED_INT,
         nullptr,
         _indirect_buffer.Size(),

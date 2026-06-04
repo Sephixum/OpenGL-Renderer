@@ -78,7 +78,6 @@ namespace glr
     EventSink _on_resize;
 
     auto OnResize(Event::Resize const& e) -> void;
-    [[nodiscard]] auto GetActiveCamera() -> entt::entity;
 
     public:
       CameraSystem();

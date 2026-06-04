@@ -33,7 +33,6 @@ namespace glr
     EventSink _camera_switch_sink = {};
 
     auto CameraSwitched(Event::CameraSwitch) -> void;
-    [[nodiscard]] static auto GetActiveCamera() -> entt::entity;
 
     public:
       FlyCameraControllerSystem();

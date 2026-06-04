@@ -29,18 +29,19 @@ namespace glr
 
   auto FlyCameraControllerSystem::Invoke() -> void
   {
-    auto [_, reg] = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene();
+    auto& scene = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene();
+    auto& reg   = scene.registry;
+    auto cam    = scene.GetActiveCamera();
 
     auto& input_service = ServiceLocator::GetInstance().Get<InputManagerService>();
     auto& timer_service = ServiceLocator::GetInstance().Get<TimerService>();
-    auto  camera_entity = GetActiveCamera();
 
-    if (camera_entity == entt::null)
+    if (cam == entt::null)
     {
       return;
     }
 
-    auto& transform = reg.get<Component::Transform>(camera_entity);
+    auto& transform = reg.get<Component::Transform>(cam);
     auto  dt        = timer_service.DeltaSeconds();
 
     auto mouse_delta = input_service.GetMouseDelta();
@@ -101,23 +102,6 @@ namespace glr
   auto FlyCameraControllerSystem::CameraSwitched(Event::CameraSwitch) -> void
   {
     _state.angles_initialised = false;
-  }
-
-  auto FlyCameraControllerSystem::GetActiveCamera() -> entt::entity
-  {
-    auto [_, reg] = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene();
-
-    auto view = reg.view<Component::Camera,
-                         Component::ActiveCamera,
-                         Component::Transform,
-                         Component::Projection>();
-
-    if (view.size_hint() == 0)
-    {
-      return entt::null;
-    }
-
-    return *view.begin();
   }
 
 }
