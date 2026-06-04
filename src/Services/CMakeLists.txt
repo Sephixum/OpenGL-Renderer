@@ -1,0 +1,12 @@
+target_sources(
+  glrlib 
+  PUBLIC
+    MeshManagerService.cpp
+    TimerService.cpp
+    WindowService.cpp
+    SystemManagerService.cpp
+    InputManagerService.cpp
+    ResourceLoaderService.cpp
+    ShaderManagerService.cpp
+    SceneManagerService.cpp
+)
