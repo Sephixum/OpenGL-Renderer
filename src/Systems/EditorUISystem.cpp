@@ -1,9 +1,11 @@
 #include "EditorUISystem.hpp"
 
+#include "Components/include/MeshAssetComponent.hpp"
 #include "Components/include/ProjectionComponent.hpp"
 #include "Services/SceneManagerService.hpp"
 #include "Services/TimerService.hpp"
 #include "Services/ServiceLocator.hpp"
+#include "Services/MeshManagerService.hpp"
 #include "Services/WindowService.hpp"
 #include "Services/InputManagerService.hpp"
 
@@ -17,14 +19,135 @@
 namespace glr
 {
 
+  auto EditorUISystem::DrawEntityInspector() -> void
+  {
+
+    auto& scene   = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene();
+    auto& reg     = scene.registry;
+
+    if (_state.selected_entity == entt::null or (not reg.valid(_state.selected_entity)))
+    {
+      return;
+    }
+    ImGui::Begin("Inspector");
+
+    auto entity = _state.selected_entity;
+
+    auto entityLabel = std::format("Entity {}", static_cast<std::size_t>(entity));
+    if (auto* tag = reg.try_get<Component::Tag>(entity))
+    {
+      entityLabel = tag->str;
+    }
+    ImGui::Text("Selected: %s", entityLabel.c_str());
+    ImGui::Separator();
+
+    // ---- Transform ----
+    if (auto* t = reg.try_get<Component::Transform>(entity))
+    {
+      if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
+      {
+        glm::vec3 pos = t->position;
+        if (ImGui::DragFloat3("Position", glm::value_ptr(pos), 0.1f))
+        {
+          t->position = pos;
+        }
+        glm::vec3 euler = glm::degrees(glm::eulerAngles(t->rotation));
+        if (ImGui::DragFloat3("Rotation", glm::value_ptr(euler), 1.0f))
+        {
+            t->rotation = glm::quat(glm::radians(euler));
+        }
+
+        glm::vec3 scale = t->scale;
+        if (ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.1f, 0.01f, 100.0f))
+        {
+            t->scale = scale;
+        }
+      }
+    }
+
+    if (auto* mesh = reg.try_get<Component::MeshAsset>(entity))
+    {
+      if (ImGui::CollapsingHeader("Mesh", ImGuiTreeNodeFlags_DefaultOpen))
+      {
+        auto& meshManager = ServiceLocator::GetInstance().Get<MeshManagerService>();
+        auto meshNames    = meshManager.GetModelNames();
+
+        auto currentMesh = mesh->tag;
+        if (ImGui::BeginCombo("Model", currentMesh.c_str()))
+        {
+          for (const auto& name : meshNames)
+          {
+            auto isSelected = (currentMesh == name);
+            if (ImGui::Selectable(name.data(), isSelected))
+            {
+              mesh->tag = name;
+            }   
+            if (isSelected)
+            {
+              ImGui::SetItemDefaultFocus();
+            }
+          }
+          ImGui::EndCombo();
+        }
+      }
+    }
+    else
+    {
+      if (ImGui::Button("Add Mesh Component"))
+      {
+        reg.emplace<Component::MeshAsset>(entity);
+      }
+    }
+
+    // ---- Tag ----
+    if (auto* tag = reg.try_get<Component::Tag>(entity))
+    {
+      if (ImGui::CollapsingHeader("Tag"))
+      {
+        auto buf = tag->str;
+        buf.resize(512);
+        if (ImGui::InputText("Name", buf.data(), buf.size()))
+        {
+          buf.resize(std::strlen(buf.c_str()));
+          tag->str = std::move(buf);
+        }
+      }
+    }
+
+    ImGui::End();
+  }
+
+  auto EditorUISystem::DrawLoadedModels() -> void
+  {
+    auto const names = ServiceLocator::GetInstance().Get<MeshManagerService>().GetModelNames();
+
+    ImGui::Begin("Mesh names", &_state.show_debug_info);
+    {
+      if (names.empty())
+      {
+        ImGui::Text("No models loaded");
+      }
+      else
+      {
+        for (auto const& name : names)
+        {
+          ImGui::Text("%s", name.data());
+        }
+      }
+    }
+    ImGui::End();
+  }
+
   auto EditorUISystem::DrawDebugInfoWindow() -> void
   {
     ImGui::Begin("Debug Info", &_state.show_debug_info);
 
     auto& timer = ServiceLocator::GetInstance().Get<TimerService>();
-    ImGui::Text("Frame:  %lu",     timer.GetFrameCount());
-    ImGui::Text("Delta:  %.3f ms", timer.GetDeltaSeconds() * 1000.0);
-    ImGui::Text("Elapsed: %.1f s", std::chrono::duration<double>(timer.GetElapsedTime()).count());
+    auto  fps   = (timer.GetDeltaSeconds() > 0.0) ? (1.0 / timer.GetDeltaSeconds()) : 0.0;
+    ImGui::Text("FPS       : %.3f", fps);
+    ImGui::Text("Frame     : %lu",     timer.GetFrameCount());
+    ImGui::Text("Delta     : %.3f ms", timer.GetDeltaSeconds() * 1000.0);
+    ImGui::Text("Elapsed   : %.1f s", std::chrono::duration<double>(timer.GetElapsedTime()).count());
     ImGui::Text("Time Scale: %.2f", timer.GetTimeScale());
 
     ImGui::End();
@@ -66,8 +189,8 @@ namespace glr
     ImGuizmo::Manipulate(
         glm::value_ptr(view_mat),
         glm::value_ptr(proj_mat),
-        ::ImGuizmo::UNIVERSAL,
-        ::ImGuizmo::WORLD,
+        ::ImGuizmo::TRANSLATE | ImGuizmo::SCALE | ImGuizmo::ROTATE,
+        ::ImGuizmo::LOCAL,
         glm::value_ptr(model)
     );
 
@@ -97,7 +220,9 @@ namespace glr
 
     for (auto [entity, transform, tag] : view.each()) 
     {
-      if (ImGui::Selectable(tag.str.c_str(), _state.selected_entity == entity)) 
+      auto final_tag = tag.str;
+      if (final_tag.empty()) final_tag = "Uknown Entity";
+      if (ImGui::Selectable(final_tag.c_str(), _state.selected_entity == entity)) 
       {
         _state.selected_entity = entity;
       }
@@ -142,6 +267,7 @@ namespace glr
       if (_state.show_debug_info) DrawDebugInfoWindow();
       DrawHierarchyWindow();
       DrawGizmo();
+      DrawEntityInspector();
     }
 
     if((not io.WantCaptureKeyboard) and (not io.WantCaptureMouse)) input_manager.SetEnabled(true);

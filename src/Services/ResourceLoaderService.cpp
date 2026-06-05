@@ -1,15 +1,20 @@
 #include "ResourceLoaderService.hpp"
-#include "Graphics/ShaderProgram.hpp"
-#include "MeshManagerService.hpp"
+
 #include "ServiceLocator.hpp"
+#include "MeshManagerService.hpp"
 #include "ShaderManagerService.hpp"
-#include "Utils/Error.hpp"
+
 #include "Utils/Exception.hpp"
 
+#include <algorithm>
 #include <assimp/scene.h>
+#include <cctype>
 #include <filesystem>
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
+#include <glm/ext/quaternion_geometric.hpp>
+#include <limits>
+#include <set>
 
 
 namespace glr
@@ -32,17 +37,7 @@ namespace glr
       }
     }
 
-    {
-      auto models_root = fs::current_path() / "assets" / "models";
-      if (not fs::exists(models_root)) return;
-
-      for (auto const& entry : fs::directory_iterator(models_root))
-      {
-        if (not entry.is_directory()) continue;
-        auto model_name = entry.path().filename().string();
-        LoadModel(model_name);
-      }
-    }
+    LoadAllAssetModels();
   }
 
   auto ResourceLoaderService::OnUpdate() -> void 
@@ -55,28 +50,50 @@ namespace glr
 
   }
 
-  auto ResourceLoaderService::LoadModel(std::string const& name) -> void
+  auto ResourceLoaderService::LoadAllAssetModels() -> void
   {
+    namespace rng = std::ranges;
+    namespace vws = std::views;
+    static std::set<std::string> const extensions = {".gltf", ".obj", ".glb"};
+    static fs::path              const models_root  = fs::current_path() / "assets" / "models";
+    if (not fs::exists(models_root)) return;
+
+    auto is_model_file = [](const fs::directory_entry& entry) -> bool 
+    {
+        if (!entry.is_regular_file()) return false;
+        std::string ext = entry.path().extension().string();
+        rng::transform(ext, ext.begin(), ::tolower);
+        return rng::find(extensions, ext) != extensions.end();
+    };
+
+    auto entries = rng::subrange(fs::recursive_directory_iterator(models_root),
+                                 fs::recursive_directory_iterator{});
+
+    for ( auto const& entry : entries | vws::filter(is_model_file))
+    {
+      LoadModel(entry.path());
+    }
+
+  }
+
+  auto ResourceLoaderService::LoadModel(fs::path const& absolute_path_dir) -> void
+  {
+    if ((not fs::exists(absolute_path_dir)) or (not fs::is_regular_file(absolute_path_dir)))
+    {
+      return;
+    }
+
+    auto tag = absolute_path_dir.stem().string();
+    LoadModelFromFile(absolute_path_dir, tag);
+  }
+
+  auto ResourceLoaderService::LoadModelFromFile(std::filesystem::path const& path, std::string const& name) -> void
+  {
+    static constexpr auto range = std::views::iota;
     auto& mesh_manager = ServiceLocator::GetInstance().Get<MeshManagerService>();
     if (mesh_manager.IsMeshLoaded(name)) return;
 
     fs::path model_dir = fs::current_path() / "assets" / "models" / name;
-    static constexpr auto const k_extensions = std::array{
-      ".gltf", ".obj"
-    };
-
-    auto model_file = fs::path{};
-    for (auto const& extension : k_extensions)
-    {
-      auto candidate = model_dir / (name + extension);
-      if (fs::exists(candidate))
-      {
-        model_file = candidate;
-        break;
-      }
-    }
-
-    if (model_file.empty()) return;
 
     static constexpr auto const flags = 
                 aiProcess_Triangulate |
@@ -85,14 +102,37 @@ namespace glr
                 aiProcess_FlipUVs;   // glTF UV orientation fix
 
     auto        importer = Assimp::Importer{};
-    auto const* scene    = importer.ReadFile(model_file, flags);
-
+    auto const* scene    = importer.ReadFile(path.string(), flags);
     if ((not scene) or (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) or (not scene->mRootNode))
     {
       throw Exception{"Assimp error -> {}", std::string(importer.GetErrorString())};
     }
 
-    auto process_mesh_fn = [](const aiMesh* mesh) static -> MeshData 
+    
+    auto local_min = glm::vec3(std::numeric_limits<float>::min());
+    auto local_max = glm::vec3(-std::numeric_limits<float>::max());
+    for (auto m : range(0zu, scene->mNumMeshes))
+    {
+      auto const* mesh = scene->mMeshes[m];
+      for (auto v : range(0zu, mesh->mNumVertices))
+      {
+        auto vert = mesh->mVertices[v];
+        local_min = glm::min(local_min, glm::vec3(vert.x, vert.y, vert.z));
+        local_max = glm::max(local_max, glm::vec3(vert.x, vert.y, vert.z));
+      }
+    }
+
+    glm::vec3       size        = local_max - local_min;
+    float           max_extent  = glm::max(size.x, glm::max(size.y, size.z));
+    float           scale       = 1.0f;
+    constexpr auto  k_target_size = 3.0f;
+
+    if (max_extent > 0.0f)
+    {
+      scale = k_target_size / max_extent;
+    }
+
+    auto process_mesh_fn = [&scale](const aiMesh* mesh) -> MeshData 
     {
       static constexpr auto range = std::views::iota;
       auto mesh_data = MeshData{};
@@ -103,11 +143,11 @@ namespace glr
         
         if (mesh->HasPositions())
         {
-          v.position = glm::vec3(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z);
+          v.position = glm::vec3(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z) * scale;
         }
         if (mesh->HasNormals())
         {
-          v.normal = glm::vec3(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
+          v.normal = glm::normalize(glm::vec3(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z));
         }
         if (mesh->mTextureCoords[0])
         {

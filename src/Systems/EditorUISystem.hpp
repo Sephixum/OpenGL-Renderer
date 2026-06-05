@@ -24,7 +24,9 @@ namespace glr
 
     auto DrawDebugInfoWindow() -> void;
     auto DrawHierarchyWindow() -> void;
-    auto DrawGizmo()           -> void;
+    auto DrawGizmo() -> void;
+    auto DrawLoadedModels() -> void;
+    auto DrawEntityInspector() -> void;
 
     public:
       EditorUISystem(); 

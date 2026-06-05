@@ -32,6 +32,7 @@ namespace glr
       [[nodiscard]] auto GetVertexBuffer() const -> DynamicPersistantBuffer<VertexData> const&    { return _vertex_data; }
       [[nodiscard]] auto GetIndexBuffer()  const -> DynamicPersistantBuffer<std::uint32_t> const& { return _index_data;  }
       [[nodiscard]] auto IsMeshLoaded(std::string const& name) const -> bool;
+      [[nodiscard]] auto GetModelNames() const -> std::vector<std::string_view>;
   };
 
 }

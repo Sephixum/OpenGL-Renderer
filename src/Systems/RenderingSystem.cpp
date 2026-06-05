@@ -89,14 +89,14 @@ namespace glr
 
     struct SubMeshKey 
     {
-      std::string_view tag = {};
+      std::string tag = {};
       std::size_t sub_idx  = {};
       auto operator<=>(SubMeshKey const&) const = default;
     };
 
     auto sub_mesh_key_hash_fn = [](SubMeshKey const& k) static -> std::size_t
     {
-      std::size_t h1 = std::hash<std::string_view>{}(k.tag);
+      std::size_t h1 = std::hash<std::string>{}(k.tag);
       std::size_t h2 = std::hash<std::size_t>{}(k.sub_idx);
       return h1 ^ (h2 << 1);
     };

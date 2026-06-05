@@ -64,6 +64,12 @@ namespace glr
         * glm::angleAxis(glm::radians(30.0f), glm::vec3(1.0f, 0.0f, 0.0f))
         * glm::angleAxis(glm::radians(48.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
+      // auto fox = reg.create();
+      // reg.emplace<Component::Transform>(fox);
+      // auto& mesh_asset3 = reg.emplace<Component::MeshAsset>(fox);
+      // reg.emplace<Component::Tag>(fox, "Fox");
+      // mesh_asset3.tag = "Fox";
+
       while (not window.ShouldClose())     
       {
         window.PollEvents();

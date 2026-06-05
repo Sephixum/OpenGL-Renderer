@@ -1,6 +1,7 @@
 #include "MeshManagerService.hpp"
 #include "Utils/Error.hpp"
 #include <print>
+#include <ranges>
 #include <span>
 
 namespace glr
@@ -48,6 +49,13 @@ namespace glr
   auto MeshManagerService::IsMeshLoaded(std::string const& name) const -> bool
   {
     return _mesh_lookup.contains(name);
+  }
+
+  auto MeshManagerService::GetModelNames() const -> std::vector<std::string_view>
+  {
+    return _mesh_lookup
+      | std::views::transform([](auto const& e) -> std::string_view const {return e.first;}) 
+      | std::ranges::to<std::vector>();
   }
 
   auto MeshManagerService::OnInit() -> void 
