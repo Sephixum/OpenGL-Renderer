@@ -24,26 +24,31 @@ namespace glr
 
   auto TimerService::OnShutdown() -> void {} 
 
-  auto TimerService::DeltaTime() const -> Duration { return _delta; }
+  auto TimerService::GetDeltaTime() const -> Duration { return _delta; }
 
-  auto TimerService::DeltaSeconds() const -> double 
+  auto TimerService::GetDeltaSeconds() const -> double 
   {
     return std::chrono::duration<double>(_delta).count();
   }
 
-  auto TimerService::ScaledDelta() const -> Duration 
+  auto TimerService::GetScaledDelta() const -> Duration 
   {
     return std::chrono::duration_cast<Duration>(_delta * _time_scale);
   }
 
-  auto TimerService::ElapsedTime() const -> Duration 
+  auto TimerService::GetElapsedTime() const -> Duration 
   {
     return _elapsed;
   }
 
-  auto TimerService::FrameCount() const -> std::uint64_t 
+  auto TimerService::GetFrameCount() const -> std::uint64_t 
   {
     return _fram_count;
+  }
+
+  auto TimerService::GetTimeScale() const -> double
+  {
+    return _time_scale;
   }
 
 }

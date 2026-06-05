@@ -54,13 +54,13 @@ namespace glr
 
   auto InputManagerService::OnMouseScroll(Event::MouseScroll const& e) -> void 
   {
-    if (!_state.enabled) return;
+    if (not _state.enabled) return;
     _state.scroll_delta += static_cast<float>(e.yoffset);
   }
 
   auto InputManagerService::OnKeyboardKey(Event::KeyBoardKey const& e) -> void 
   {
-    if (!_state.enabled) return;
+    if (not _state.enabled) return;
 
     if (e.key >= 0 && e.key <= k_max_keyboard_keys)
     {

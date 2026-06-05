@@ -4,4 +4,5 @@ target_sources(
     CameraSystem.cpp
     FlyCameraControllerSystem.cpp
     RenderingSystem.cpp
+    EditorUISystem.cpp
 )

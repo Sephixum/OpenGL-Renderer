@@ -79,7 +79,7 @@ namespace glr
       s->OnInit();
     }
   }
-  
+
   inline auto ServiceLocator::UpdateServices() -> void
   {
     for (auto [_, s] : _services)
@@ -87,7 +87,7 @@ namespace glr
       s->OnUpdate();
     }
   }
-  
+
   inline auto ServiceLocator::ShutdownServices() -> void
   {
     for (auto [_, s] : _services)

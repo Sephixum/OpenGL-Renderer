@@ -42,7 +42,7 @@ namespace glr
     }
 
     auto& transform = reg.get<Component::Transform>(cam);
-    auto  dt        = timer_service.DeltaSeconds();
+    auto  dt        = timer_service.GetDeltaSeconds();
 
     auto mouse_delta = input_service.GetMouseDelta();
 

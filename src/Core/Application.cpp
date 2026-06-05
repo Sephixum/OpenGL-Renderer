@@ -22,6 +22,7 @@
 #include "Systems/CameraSystem.hpp"
 #include "Systems/FlyCameraControllerSystem.hpp"
 #include "Systems/RenderingSystem.hpp"
+#include "Systems/EditorUISystem.hpp"
 
 #include "Components/Components.hpp"
 
@@ -64,7 +65,9 @@ namespace glr
       while (not window.ShouldClose())     
       {
         window.PollEvents();
+        EditorUISystem::BeginFrame();
         ServiceLocator::GetInstance().UpdateServices();
+        EditorUISystem::EndFrame();
         window.SwapBuffers();
       }
     }
@@ -87,6 +90,7 @@ namespace glr
     auto& system_manager = ServiceLocator::GetInstance().Get<SystemManagerService>();
     system_manager.AddSystem<CameraSystem>();
     system_manager.AddSystem<FlyCameraControllerSystem>();
+    system_manager.AddSystem<EditorUISystem>();
     system_manager.AddSystem<RenderingSystem>();
   }
 

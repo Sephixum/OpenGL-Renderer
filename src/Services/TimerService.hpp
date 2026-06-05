@@ -16,18 +16,19 @@ namespace glr
     Duration      _delta;
     Duration      _elapsed;
     std::uint64_t _fram_count;
-    float         _time_scale  = 1.0f;
+    double        _time_scale  = 1.0;
 
     public:
       virtual auto OnInit()     -> void override;
       virtual auto OnUpdate()   -> void override;
       virtual auto OnShutdown() -> void override;
 
-      [[nodiscard]] auto DeltaTime()    const -> Duration;
-      [[nodiscard]] auto DeltaSeconds() const -> double;
-      [[nodiscard]] auto ScaledDelta()  const -> Duration;
-      [[nodiscard]] auto ElapsedTime()  const -> Duration;
-      [[nodiscard]] auto FrameCount()   const -> std::uint64_t;
+      [[nodiscard]] auto GetDeltaTime()    const -> Duration;
+      [[nodiscard]] auto GetDeltaSeconds() const -> double;
+      [[nodiscard]] auto GetScaledDelta()  const -> Duration;
+      [[nodiscard]] auto GetElapsedTime()  const -> Duration;
+      [[nodiscard]] auto GetFrameCount()   const -> std::uint64_t;
+      [[nodiscard]] auto GetTimeScale()    const -> double;
   };
 
 }
