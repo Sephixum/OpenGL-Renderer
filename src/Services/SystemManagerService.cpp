@@ -10,7 +10,7 @@ namespace glr
 
   auto SystemManagerService::OnUpdate() -> void
   {
-    for (auto& [_, sys] : m_systems)
+    for (auto& [_, sys] : _systems)
     {
       sys->Invoke();
     }
