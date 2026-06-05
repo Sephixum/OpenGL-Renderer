@@ -20,6 +20,7 @@ namespace glr
     _elapsed += _delta;
     ++_last_frame;
 
+    ++_fram_count;
   } 
 
   auto TimerService::OnShutdown() -> void {} 
