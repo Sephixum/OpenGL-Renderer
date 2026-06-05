@@ -49,12 +49,14 @@ namespace glr
 
       auto dummy_entity1 = reg.create();
       reg.emplace<Component::Transform>(dummy_entity1);
-      auto& mesh_asset = reg.emplace<Component::MeshAsset>(dummy_entity1);
-      mesh_asset.tag = "FlightHelmet";
+      auto& mesh_asset1 = reg.emplace<Component::MeshAsset>(dummy_entity1);
+      reg.emplace<Component::Tag>(dummy_entity1, "dummy 1");
+      mesh_asset1.tag = "FlightHelmet";
 
       auto dummy_entity2 = reg.create();
       auto& transform2  = reg.emplace<Component::Transform>(dummy_entity2);
       auto& mesh_asset2 = reg.emplace<Component::MeshAsset>(dummy_entity2);
+      reg.emplace<Component::Tag>(dummy_entity2, "dummy 2");
       mesh_asset2.tag = "FlightHelmet";
       transform2.position = {3.0, -5.0f, -1.0f};
       transform2.rotation = 
@@ -84,7 +86,6 @@ namespace glr
     ServiceLocator::GetInstance().Emplace<InputManagerService>();
     ServiceLocator::GetInstance().Emplace<SystemManagerService>();
     ServiceLocator::GetInstance().Emplace<SceneManagerService>();
-
     ServiceLocator::GetInstance().InitServices();
 
     auto& system_manager = ServiceLocator::GetInstance().Get<SystemManagerService>();

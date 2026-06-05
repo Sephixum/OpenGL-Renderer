@@ -16,7 +16,12 @@ namespace glr::Component
       glm::mat4 T = glm::translate(glm::mat4(1.0f), position);
       glm::mat4 R = glm::mat4_cast(rotation);
       glm::mat4 S = glm::scale(glm::mat4(1.0f), scale);
-      return T * R * S;  // common order: scale -> rotate -> translate
+      return T * R * S;
+    }
+
+    [[nodiscard]] auto GetView() const -> glm::mat4
+    {
+      return glm::inverse(GetMatrix());
     }
   };
 

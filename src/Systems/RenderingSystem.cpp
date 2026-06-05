@@ -66,7 +66,7 @@ namespace glr
 
     auto [projection, transform] = reg.get<Component::Projection, Component::Transform>(cam);
 
-    auto view_mat = glm::inverse(transform.GetMatrix());
+    auto view_mat = transform.GetView();
     auto proj_mat = projection.GetMatrix();
 
     auto camera_data = CameraData{view_mat, proj_mat};
@@ -162,7 +162,7 @@ namespace glr
     _gbuffer_pipeline.Activate();
 
     ::glMultiDrawElementsIndirect(
-        GL_LINES,
+        GL_TRIANGLES,
         GL_UNSIGNED_INT,
         nullptr,
         _indirect_buffer.Size(),
