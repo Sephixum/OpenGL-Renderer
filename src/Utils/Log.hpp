@@ -10,13 +10,10 @@
 #include <string_view>
 #include <vector>
 
-// #include "../fps.concurrency/lock.hpp"
-// #include "config.hpp"
-
 namespace glr::log
 {
 
-  inline std::vector<std::string> history{};
+  inline auto history = std::vector<std::string>{};
   // inline Lock history_lock{};
 
   namespace impl
@@ -25,7 +22,7 @@ namespace glr::log
     inline static auto log_file = []
     {
       auto f = std::ofstream{"log", std::ios::app};
-      if (!f)
+      if (not f)
       {
         std::terminate();
       }
@@ -36,10 +33,10 @@ namespace glr::log
 
   enum class Level
   {
-    DEBUG,
-    INFO,
-    WARN,
-    ERR
+    Debug,
+    Info,
+    Warn,
+    Error
   };
 
   inline auto g_force_log = false;
@@ -50,19 +47,19 @@ namespace glr::log
     Print(std::format_string<Args...> msg, Args &&...args, std::source_location loc = std::source_location::current())
     {
       auto c = '?';
-      if constexpr (L == Level::DEBUG)
+      if constexpr (L == Level::Debug)
       {
         c = 'D';
       }
-      else if constexpr (L == Level::INFO)
+      else if constexpr (L == Level::Info)
       {
         c = 'I';
       }
-      else if constexpr (L == Level::WARN)
+      else if constexpr (L == Level::Warn)
       {
         c = 'W';
       }
-      else if constexpr (L == Level::ERR)
+      else if constexpr (L == Level::Error)
       {
         c = 'E';
       }
@@ -91,15 +88,15 @@ template <Level L = {}, class... Args>
 Print(std::format_string<Args...>, Args &&...) -> Print<L, Args...>;
 
 template <class... Args>
-using Debug = Print<Level::DEBUG, Args...>;
+using Debug = Print<Level::Debug, Args...>;
 
 template <class... Args>
-using Info = Print<Level::INFO, Args...>;
+using Info = Print<Level::Info, Args...>;
 
 template <class... Args>
-using Warn = Print<Level::WARN, Args...>;
+using Warn = Print<Level::Warn, Args...>;
 
 template <class... Args>
-using Error = Print<Level::ERR, Args...>;
+using Error = Print<Level::Error, Args...>;
 
 }

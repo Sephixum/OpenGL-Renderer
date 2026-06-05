@@ -52,5 +52,5 @@ target_compile_options(
 target_include_directories(glrlib PUBLIC ${PROJECT_SOURCE_DIR}/ ${PROJECT_SOURCE_DIR}/src)
 target_compile_features(glrlib PUBLIC cxx_std_23)
 target_compile_definitions(glrlib PUBLIC NOMINMAX)
-target_link_libraries(glrlib PUBLIC stdc++exp gladlib imguilib imguizmo assimp)
+target_link_libraries(glrlib PUBLIC stdc++exp gladlib imguilib imguizmo assimp ImGuiFileDialog)
 target_link_libraries(app PUBLIC glrlib)
