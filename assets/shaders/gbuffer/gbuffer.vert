@@ -1,5 +1,10 @@
 #version 460 core
 
+out gl_PerVertex 
+{
+  vec4 gl_Position;
+};
+
 struct VertexData
 {
   float position[3];
