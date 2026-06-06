@@ -1,12 +1,8 @@
-
 #include "Components/Components.hpp"
-#include "Components/include/CameraComponent.hpp"
-#include "Components/include/MeshAssetComponent.hpp"
-#include "Components/include/ProjectionComponent.hpp"
-#include "ISystem.hpp"
-#include "RenderingSystem.hpp"
-#include "Graphics/VertexArray.hpp"
 
+#include "RenderingSystem.hpp"
+
+#include "Graphics/VertexArray.hpp"
 #include "Graphics/GraphicsPipeline.hpp"
 #include "Graphics/Buffer.hpp"
 

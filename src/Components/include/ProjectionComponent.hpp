@@ -12,7 +12,7 @@ namespace glr::Component
 
   struct PerspectiveData
   {
-    float fov_y      = glm::radians(60.0f);
+    float fov_y      = glm::radians(90.0f);
     float aspect     = 16.0f / 9.0f;
     float near_plane = 0.1f;
     float far_plane  = 100.0f;

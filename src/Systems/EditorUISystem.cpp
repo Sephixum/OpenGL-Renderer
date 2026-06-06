@@ -4,6 +4,7 @@
 #include "Components/include/ProjectionComponent.hpp"
 #include "Services/SceneManagerService.hpp"
 #include "Services/TimerService.hpp"
+#include "Services/ResourceLoaderService.hpp"
 #include "Services/ServiceLocator.hpp"
 #include "Services/MeshManagerService.hpp"
 #include "Services/WindowService.hpp"
@@ -15,9 +16,42 @@
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
 #include <ImGuizmo.h>
+#include <ImGuiFileDialog.h>
 
 namespace glr
 {
+
+  auto EditorUISystem::DrawFileDialogs() -> void
+  {
+    if (_file_dialog.Display("ChooseModelDlg"))
+    {
+      if (_file_dialog.IsOk())
+      {
+        auto file_path = _file_dialog.GetFilePathName();
+        ServiceLocator::GetInstance()
+          .Get<ResourceLoaderService>()
+          .LoadModel(file_path);
+      }
+      
+      _file_dialog.Close();
+    }
+  }
+
+  auto EditorUISystem::DrawMainMenuBar() -> void
+  {
+    if (ImGui::BeginMainMenuBar())
+    {
+      if (ImGui::BeginMenu("File"))
+      {
+        if (ImGui::MenuItem("Load Model...", "Ctrl+L"))
+        {
+          _file_dialog.OpenDialog("ChooseModelDlg", "Choose Model", "3D Models (*.gltf *.glb *.obj){.gltf,.glb,.obj}");
+        }
+        ImGui::EndMenu();
+      }
+      ImGui::EndMainMenuBar();
+    }
+  }
 
   auto EditorUISystem::DrawEntityInspector() -> void
   {
@@ -40,6 +74,7 @@ namespace glr
     }
     ImGui::Text("Selected: %s", entityLabel.c_str());
     ImGui::Separator();
+
 
     // ---- Transform ----
     if (auto* t = reg.try_get<Component::Transform>(entity))
@@ -237,6 +272,7 @@ namespace glr
   }
 
   EditorUISystem::EditorUISystem()
+    : _file_dialog{}
   {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -268,6 +304,8 @@ namespace glr
       DrawHierarchyWindow();
       DrawGizmo();
       DrawEntityInspector();
+      DrawMainMenuBar();
+      DrawFileDialogs();
     }
 
     if((not io.WantCaptureKeyboard) and (not io.WantCaptureMouse)) input_manager.SetEnabled(true);
