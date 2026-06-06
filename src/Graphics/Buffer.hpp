@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Utils/Error.hpp"
-#include "Utils/UniqueHandle.hpp"
+#include "IGLResource.hpp"
 #include "Utils/Formatter.hpp"
 
 #include <glad.h>
@@ -23,15 +23,11 @@ namespace glr
     Uniform           = GL_UNIFORM_BUFFER
   };
   
-  class IBuffer
+  class IBuffer : public IGLResource
   {
     friend class VertexArray;
 
-    protected:
-      UniqueHandle<::GLuint> _id;
-
     public:
-      [[nodiscard]] auto GetID() -> ::GLuint { return _id; }
       virtual auto WriteData(std::span<std::byte const> data, std::size_t offset = 0) -> void = 0;
       virtual ~IBuffer() = default;
 
