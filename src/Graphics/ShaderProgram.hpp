@@ -1,13 +1,14 @@
 #pragma once
 
 #include <glad.h>
+
+#include "Graphics/IGLResource.hpp"
 #include "Utils/Exception.hpp"
 #include "Utils/Formatter.hpp"
 #include "Utils/UniqueHandle.hpp"
-#include "VertexArray.hpp"
+
 #include <fstream>
 #include <iterator>
-#include <stdexcept>
 #include <string_view>
 #include <utility>
 #include <filesystem>
@@ -25,10 +26,9 @@ namespace glr
   };
   
   template <ShaderStage Stage>
-  class ShaderProgram
+  class ShaderProgram : public IGLResource
   {
-    UniqueHandle<::GLuint> _id;
-    std::string            _name;
+    std::string _name;
 
     static auto GetShaderSource(stdfs::path const& path) -> std::string
     {
@@ -55,9 +55,10 @@ namespace glr
 
     public:
       ShaderProgram(stdfs::path const& path, std::string_view name = "Unknown ShaderProgram")
-        : _id(0u, [](auto e){::glDeleteProgram(e);})
-        , _name{name}
+        : _name{name}
       {
+
+        _id = {0u, [](auto e){::glDeleteProgram(e);}};
         static constexpr auto s_shader_level_stage =  [] consteval
         {
           switch (Stage) 
@@ -75,11 +76,6 @@ namespace glr
         _id.Reset(::glCreateShaderProgramv(s_shader_level_stage, 1, &source_ptr));
         ValidateProgramLinking();
         ::glObjectLabel(GL_PROGRAM, _id, name.length(), name.data());
-      }
-
-      auto GetID() const -> ::GLuint
-      {
-        return _id;
       }
   };
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glad.h>
+#include "IGLResource.hpp"
 #include "ShaderProgram.hpp"
 #include "Utils/UniqueHandle.hpp"
 #include <string_view>
@@ -8,10 +9,9 @@
 namespace glr
 {
 
-  class GraphicsPipeline
+  class GraphicsPipeline : public IGLResource
   {
-    UniqueHandle<::GLuint> _id;
-    bool                   _validated = false;
+    bool _validated = false;
 
     auto ValidateProgramLinking() -> void
     {
@@ -28,8 +28,9 @@ namespace glr
 
     public:
       GraphicsPipeline(std::string_view name = "Unknown GraphicsPipeline")
-        : _id(0u, [](auto e){::glDeleteProgramPipelines(1, &e);})
       {
+
+        _id = {0u, [](auto e){::glDeleteProgramPipelines(1, &e);}};
         ::glCreateProgramPipelines(1, &_id);
         ::glObjectLabel(GL_PROGRAM_PIPELINE, _id, name.length(), name.data());
       }

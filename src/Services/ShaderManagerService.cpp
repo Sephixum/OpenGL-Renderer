@@ -1,5 +1,7 @@
 #include "ShaderManagerService.hpp"
 
+#include "Utils/Error.hpp"
+
 namespace glr
 {
 
