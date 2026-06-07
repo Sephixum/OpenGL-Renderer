@@ -1,6 +1,7 @@
 #include <glad.h>
 #include <GLFW/glfw3.h>
 
+#include "Utils/Log.hpp"
 #include "WindowService.hpp"
 #include "Events/Event.hpp"
 #include "Utils/Exception.hpp"

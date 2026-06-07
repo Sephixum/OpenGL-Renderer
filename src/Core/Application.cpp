@@ -10,6 +10,7 @@
 #include "Graphics/VertexArray.hpp"
 
 #include "Services/MeshManagerService.hpp"
+#include "Services/TextureManagerService.hpp"
 #include "Services/InputManagerService.hpp"
 #include "Services/ShaderManagerService.hpp"
 #include "Services/WindowService.hpp"
@@ -49,15 +50,19 @@ namespace glr
 
       auto dummy_entity1 = reg.create();
       reg.emplace<Component::Transform>(dummy_entity1);
-      auto& mesh_asset1 = reg.emplace<Component::MeshAsset>(dummy_entity1);
+      reg.emplace<Component::MeshAsset>(dummy_entity1) = {
+        .mesh_tag = "FlightHelmet",
+        .albedo_texture_tag = "FlightHelmet_albedo",
+      };
       reg.emplace<Component::Tag>(dummy_entity1, "dummy 1");
-      mesh_asset1.tag = "FlightHelmet";
 
       auto dummy_entity2 = reg.create();
       auto& transform2  = reg.emplace<Component::Transform>(dummy_entity2);
-      auto& mesh_asset2 = reg.emplace<Component::MeshAsset>(dummy_entity2);
+      reg.emplace<Component::MeshAsset>(dummy_entity2) = {
+        .mesh_tag = "Fox",
+        .albedo_texture_tag = "Fox_albedo",
+      };
       reg.emplace<Component::Tag>(dummy_entity2, "dummy 2");
-      mesh_asset2.tag = "FlightHelmet";
       transform2.position = {3.0, -5.0f, -1.0f};
       transform2.rotation = 
           transform2.rotation 
@@ -88,6 +93,7 @@ namespace glr
     ServiceLocator::GetInstance().Emplace<WindowService>(800, 600, "GLR");
     ServiceLocator::GetInstance().Emplace<MeshManagerService>();
     ServiceLocator::GetInstance().Emplace<ShaderManagerService>();
+    ServiceLocator::GetInstance().Emplace<TextureManagerService>();
     ServiceLocator::GetInstance().Emplace<ResourceLoaderService>();
     ServiceLocator::GetInstance().Emplace<InputManagerService>();
     ServiceLocator::GetInstance().Emplace<SystemManagerService>();

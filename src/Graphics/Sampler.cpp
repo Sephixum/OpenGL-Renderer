@@ -8,7 +8,6 @@ namespace glr
 
 
   Sampler::Sampler(SamplerCreateInfo const& info, std::string_view name)
-    : _id(0u, [](auto e){::glDeleteSamplers(1, &e);})
   {
     // Used to clamp invalid values
     static float const max_anisotropy = []
@@ -17,6 +16,8 @@ namespace glr
       ::glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &max);
       return max;
     }();
+
+    _id = {0u, [](auto e){::glDeleteSamplers(1, &e);}};
 
     ::glCreateSamplers(1, &_id);
     ::glSamplerParameteri(_id, GL_TEXTURE_MIN_FILTER, std::to_underlying(info.min_filter));
@@ -34,11 +35,6 @@ namespace glr
     }
 
     ::glObjectLabel(GL_SAMPLER, _id, name.length(), name.data());
-  }
-
-  auto Sampler::GetID() -> ::GLuint
-  {
-    return _id;
   }
 
 }

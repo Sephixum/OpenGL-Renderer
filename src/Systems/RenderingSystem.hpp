@@ -6,6 +6,7 @@
 #include "Graphics/Buffer.hpp"
 #include <cstdint>
 #include <glm/ext/matrix_float4x4.hpp>
+#include <glm/ext/vector_uint2.hpp>
 
 namespace glr
 {
@@ -21,7 +22,9 @@ namespace glr
 
   struct InstanceData
   {
-    glm::mat4 model = glm::mat4(1.0f);
+    glm::mat4  model         = glm::mat4(1.0f);
+    ::GLuint64 albedo_handle = 0;
+    ::GLuint64 __pad         = {};
   };
 
   struct CameraData

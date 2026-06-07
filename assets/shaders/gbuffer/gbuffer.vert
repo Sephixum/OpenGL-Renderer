@@ -14,7 +14,8 @@ struct VertexData
 
 struct InstanceData
 {
-  mat4 model;
+  mat4  model;
+  uvec2 albedo_handle;
 };
 
 
@@ -49,6 +50,12 @@ mat4 GetInstanceModelMatrix()
   return instance_data[(gl_BaseInstance + gl_InstanceID)].model;
 }
 
+uvec2 GetInstanceAlbedoHandle()
+{
+  return instance_data[(gl_BaseInstance + gl_InstanceID)].albedo_handle;
+;
+}
+
 vec3 GetNormal(uint index)
 {
   return vec3(
@@ -66,13 +73,9 @@ vec2 GetUV(uint index)
   );
 }
 
-layout(location = 0) out SHADER_BLOCK
-{
-  vec3 world_pos;
-  vec3 normal;
-  vec2 texcoord;
-} 
-v_out;
+layout(location = 0) out flat uvec2 out_albedo_bindless_handle;
+layout(location = 1) out vec2 out_uv;
+layout(location = 2) out vec3 out_normal;
 
 void main()
 {
@@ -81,9 +84,9 @@ void main()
   mat3 normal_mat   = mat3(model);
   vec3 world_normal = normalize(normal_mat * GetNormal(gl_VertexID));
 
-  v_out.world_pos = world_pos.xyz;
-  v_out.normal    = world_normal;
-  v_out.texcoord  = GetUV(gl_VertexID);
+  out_uv     = GetUV(gl_VertexID);
+  out_normal = GetNormal(gl_VertexID);
+  out_albedo_bindless_handle = GetInstanceAlbedoHandle();
 
   gl_Position = projection * view * world_pos;
 }

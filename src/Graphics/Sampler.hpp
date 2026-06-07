@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Utils/UniqueHandle.hpp"
+#include "IGLResource.hpp"
 #include <glad.h>
 #include <optional>
 #include <string_view>
@@ -40,14 +40,10 @@ namespace glr
     std::optional<float> anisotropy_samples = std::nullopt;
   };
 
-  class Sampler
+  class Sampler : public IGLResource
   {
-    UniqueHandle<::GLuint> _id;
-
     public:
       Sampler(SamplerCreateInfo const& info, std::string_view name = "Unknown Sampler");
-
-      [[nodiscard]] auto GetID() const -> ::GLuint;
 
   };
 

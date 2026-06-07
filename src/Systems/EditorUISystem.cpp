@@ -107,7 +107,7 @@ namespace glr
         auto& meshManager = ServiceLocator::GetInstance().Get<MeshManagerService>();
         auto meshNames    = meshManager.GetModelNames();
 
-        auto currentMesh = mesh->tag;
+        auto currentMesh = mesh->mesh_tag;
         if (ImGui::BeginCombo("Model", currentMesh.c_str()))
         {
           for (const auto& name : meshNames)
@@ -115,7 +115,7 @@ namespace glr
             auto isSelected = (currentMesh == name);
             if (ImGui::Selectable(name.data(), isSelected))
             {
-              mesh->tag = name;
+              mesh->mesh_tag = name;
             }   
             if (isSelected)
             {

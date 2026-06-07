@@ -10,6 +10,7 @@
 #include "Services/ServiceLocator.hpp"
 #include "Services/ShaderManagerService.hpp"
 #include "Services/SceneManagerService.hpp"
+#include "Services/TextureManagerService.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -28,7 +29,7 @@ namespace glr
     , _gbuffer_pipeline("gbuffer GraphicsPipeline")
     , _indirect_buffer(10, "Indirect Command Buffer")
     , _instance_buffer(10, "Instance Data Buffer")
-    , _camera_buffer(sizeof(CameraData), "Camera Data Buffer")
+    , _camera_buffer(1, "Camera Data Buffer")
   {
     glEnable(GL_DEPTH_TEST);
 
@@ -73,8 +74,9 @@ namespace glr
   {
     static constexpr auto range = std::views::iota;
 
-    auto& mesh_manager = ServiceLocator::GetInstance().Get<MeshManagerService>();
-    auto& reg          = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene().registry;
+    auto& mesh_manager    = ServiceLocator::GetInstance().Get<MeshManagerService>();
+    auto& texture_manager = ServiceLocator::GetInstance().Get<TextureManagerService>();
+    auto& reg             = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene().registry;
 
     auto view = reg.view<Component::MeshAsset, Component::Transform>();
 
@@ -101,17 +103,22 @@ namespace glr
 
     for (auto [entity, mesh, transform] : view.each())
     {
-      if (not mesh_manager.IsMeshLoaded(mesh.tag))
+      if (not mesh_manager.IsMeshLoaded(mesh.mesh_tag))
       {
         continue;
       }
 
-      auto const mesh_views   = mesh_manager.GetMeshData(mesh.tag);
+      auto const mesh_views   = mesh_manager.GetMeshData(mesh.mesh_tag);
       auto const model_matrix = transform.GetMatrix();
 
       for (auto i : range(0zu, mesh_views.size()))
       {
-        grouped[{mesh.tag, i}].push_back({model_matrix});
+        auto albedo_handle = ::GLuint64{};
+        if (mesh.albedo_texture_tag.has_value())
+        {
+          albedo_handle = texture_manager.GetTexture2D(mesh.albedo_texture_tag.value()).GetBindlessHandle();
+        }
+        grouped[{mesh.mesh_tag, i}].push_back({model_matrix, albedo_handle});
       }
 
     }

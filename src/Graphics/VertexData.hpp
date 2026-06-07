@@ -4,6 +4,7 @@
 
 namespace glr
 {
+
   struct VertexData
   {
     glm::vec3 position;

@@ -1,1 +1,6 @@
-# target_sources(glrlib PUBLIC)
+target_sources(
+  glrlib
+  PUBLIC
+  Sampler.cpp
+  Texture.cpp
+)

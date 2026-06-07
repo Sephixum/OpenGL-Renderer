@@ -1,13 +1,20 @@
 #include "ResourceLoaderService.hpp"
-
 #include "ServiceLocator.hpp"
 #include "MeshManagerService.hpp"
 #include "ShaderManagerService.hpp"
+#include "TextureManagerService.hpp"
 
+#include "Graphics/Texture.hpp"
+#include "Graphics/SamplerLibrary.hpp"
+
+#include "Utils/Error.hpp"
 #include "Utils/Exception.hpp"
+#include "Utils/Log.hpp"
 
 #include <algorithm>
+#include <assimp/material.h>
 #include <assimp/scene.h>
+#include <assimp/types.h>
 #include <cctype>
 #include <filesystem>
 #include <assimp/Importer.hpp>
@@ -15,15 +22,32 @@
 #include <glm/ext/quaternion_geometric.hpp>
 #include <limits>
 #include <set>
+#include <stb_image.h>
 
+namespace fs = std::filesystem;
+
+namespace
+{
+
+  [[nodiscard]] auto ResolveTexturePath(
+      fs::path const& model_file_path,
+      std::string const& texture_path
+  ) -> fs::path
+  {
+    fs::path tex_path = texture_path;
+    if (tex_path.is_absolute()) return tex_path;
+    return model_file_path.parent_path() / tex_path;
+  }
+
+}
 
 namespace glr
 {
 
-  namespace fs = std::filesystem;
 
   auto ResourceLoaderService::OnInit() -> void
-  {
+  { 
+    stbi_set_flip_vertically_on_load(false);
     {
       auto& shader_service = ServiceLocator::GetInstance().Get<ShaderManagerService>();
       auto  shaders_root   = fs::current_path() / "assets" / "shaders";
@@ -76,10 +100,40 @@ namespace glr
 
   }
 
+  auto ResourceLoaderService::LoadModelTextures(
+        std::filesystem::path const& model_file_path,
+        aiScene               const* scene
+    ) -> void
+  {
+    static constexpr auto range = std::views::iota;
+    static constexpr std::array texture_types = {
+      std::pair{ aiTextureType_DIFFUSE,           "albedo"   },
+      // std::pair{ aiTextureType_NORMALS,           "normal"   },
+      // std::pair{ aiTextureType_SPECULAR,          "specular" },
+      // std::pair{ aiTextureType_DIFFUSE_ROUGHNESS, "roughness" },
+      // std::pair{ aiTextureType_METALNESS,         "metallic"  },
+    };
+    
+    for (auto i : range(0zu, scene->mNumMaterials))
+    {
+      aiMaterial* material = scene->mMaterials[i];
+      for (auto [type, slot] : texture_types)
+      {
+        auto path = aiString{};
+        if (material->GetTexture(type, 0, &path) == aiReturn_SUCCESS)
+        {
+          auto absolute_path = ResolveTexturePath(model_file_path, path.C_Str());
+          LoadTextureCustomTag(absolute_path, std::format("{}_{}", model_file_path.stem().string(), slot));
+        }
+      }
+    }
+  }
+
   auto ResourceLoaderService::LoadModel(fs::path const& absolute_path_dir) -> void
   {
     if ((not fs::exists(absolute_path_dir)) or (not fs::is_regular_file(absolute_path_dir)))
     {
+      log::Warn("Texture file not found : {}", absolute_path_dir.string());
       return;
     }
 
@@ -96,10 +150,10 @@ namespace glr
     fs::path model_dir = fs::current_path() / "assets" / "models" / name;
 
     static constexpr auto const flags = 
-                aiProcess_Triangulate |
-                aiProcess_GenNormals |
-                aiProcess_JoinIdenticalVertices |
-                aiProcess_FlipUVs;   // glTF UV orientation fix
+                aiProcess_Triangulate           |
+                aiProcess_GenNormals            |
+                aiProcess_JoinIdenticalVertices;
+                // aiProcess_FlipUVs;   // glTF UV orientation fix
 
     auto        importer = Assimp::Importer{};
     auto const* scene    = importer.ReadFile(path.string(), flags);
@@ -108,8 +162,9 @@ namespace glr
       throw Exception{"Assimp error -> {}", std::string(importer.GetErrorString())};
     }
 
+    LoadModelTextures(path, scene);
     
-    auto local_min = glm::vec3(std::numeric_limits<float>::min());
+    auto local_min = glm::vec3(std::numeric_limits<float>::max());
     auto local_max = glm::vec3(-std::numeric_limits<float>::max());
     for (auto m : range(0zu, scene->mNumMeshes))
     {
@@ -193,6 +248,106 @@ namespace glr
 
     std::vector<MeshData> allMeshes = process_node_fn(scene->mRootNode);
     mesh_manager.LoadMesh(name, allMeshes);
+  }
+
+
+  auto ResourceLoaderService::LoadTexture(fs::path const& absolute_path_dir) -> void
+  {
+    if ((not fs::exists(absolute_path_dir)) or (not fs::is_regular_file(absolute_path_dir)))
+    {
+      log::Warn("Model file not found : {}", absolute_path_dir.string());
+      return;
+    }
+
+    auto name = absolute_path_dir.stem().string();
+    LoadTextureFromFile(absolute_path_dir, name);
+  }
+
+  auto ResourceLoaderService::LoadTextureFromFile(fs::path const& path, std::string const& name) -> void
+  {
+    namespace rng = std::ranges;
+
+    auto& texture_manager = ServiceLocator::GetInstance().Get<TextureManagerService>();
+    if (texture_manager.IsTextureLoaded(name))
+    {
+      return;
+    }
+
+    log::Info("Loading texture: {}", path.string());
+                                                      
+    auto const ext = [&]{
+      auto e = path.extension().string();
+      rng::transform(e, e.begin(), ::tolower);
+      return e;
+    }();
+
+    if (ext == ".hdr" or ext == ".exr")
+    {
+      throw Exception{"Loading Texture {} is not implemented.", name};
+    }
+    else
+    {
+      auto width  = 0;
+      auto height = 0;
+      auto comp   = 0;
+
+      auto* pixels_data = stbi_load(path.string().c_str(), &width, &height, &comp, 4);
+      Expect(pixels_data != nullptr, "Failed to load 2D Texture reason -> {}", stbi_failure_reason());
+
+      auto info = Texture2DCreateInfo{
+        .width   = static_cast<std::uint32_t>(width),
+        .height  = static_cast<std::uint32_t>(height),
+        .format  = TextureFormat::Rgba8unorm,
+        .sampler = SamplerLibrary::ModelMipmapAniso16x(),
+        .data    = std::vector<std::byte>(reinterpret_cast<std::byte*>(pixels_data), reinterpret_cast<std::byte*>(pixels_data) + width * height * 4),
+      };
+
+      stbi_image_free(pixels_data);
+      texture_manager.AddTexture2D(info, name);
+    }
+  }
+
+  auto ResourceLoaderService::LoadTextureCustomTag(fs::path const& absolute_path_dir, std::string const& tag) -> void
+  {
+    namespace rng = std::ranges;
+
+    auto& texture_manager = ServiceLocator::GetInstance().Get<TextureManagerService>();
+    if (texture_manager.IsTextureLoaded(tag))
+    {
+      return;
+    }
+
+    log::Info("Loading texture: {}", absolute_path_dir.string());
+                                                      
+    auto const ext = [&]{
+      auto e = absolute_path_dir.extension().string();
+      rng::transform(e, e.begin(), ::tolower);
+      return e;
+    }();
+
+    if (ext == ".hdr" or ext == ".exr")
+    {
+      throw Exception{"Loading Texture {} is not implemented.", tag};
+    }
+    else
+    {
+      auto width  = 0;
+      auto height = 0;
+      auto* pixels_data = stbi_load(absolute_path_dir.string().c_str(), &width, &height, nullptr, 4);
+      Expect(pixels_data != nullptr, "Failed to load 2D Texture reason -> {}", stbi_failure_reason());
+
+      auto info = Texture2DCreateInfo{
+        .width   = static_cast<std::uint32_t>(width),
+        .height  = static_cast<std::uint32_t>(height),
+        .format  = TextureFormat::Rgba8unorm,
+        .sampler = SamplerLibrary::ModelMipmapRepeat(),
+        .data    = std::vector<std::byte>(reinterpret_cast<std::byte*>(pixels_data), reinterpret_cast<std::byte*>(pixels_data) + width * height * 4),
+        .mipmap_levels = 1
+      };
+
+      stbi_image_free(pixels_data);
+      texture_manager.AddTexture2D(info, tag);
+    }
   }
 
 }

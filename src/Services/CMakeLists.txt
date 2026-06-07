@@ -9,4 +9,5 @@ target_sources(
     ResourceLoaderService.cpp
     ShaderManagerService.cpp
     SceneManagerService.cpp
+    TextureManagerService.cpp
 )
