@@ -20,11 +20,10 @@ namespace glr
     std::uint32_t base_instance;
   };
 
-  struct InstanceData
+  struct alignas(16) InstanceData
   {
     glm::mat4  model         = glm::mat4(1.0f);
     ::GLuint64 albedo_handle = 0;
-    ::GLuint64 __pad         = {};
   };
 
   struct CameraData

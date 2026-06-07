@@ -14,15 +14,7 @@ namespace glr
 
   auto TextureManagerService::OnUpdate() -> void 
   {
-    [[maybe_unused]] static auto const _ = [this]
-    {
-      log::Info("Initially loaded textures ->");
-      for (auto const& [name, _] : _2d)
-      {
-        std::println("\t{}", name);
-      }
-      return 0;
-    }();
+
   }
 
   auto TextureManagerService::OnShutdown() -> void 

@@ -47,7 +47,6 @@ namespace glr
 
   auto ResourceLoaderService::OnInit() -> void
   { 
-    stbi_set_flip_vertically_on_load(false);
     {
       auto& shader_service = ServiceLocator::GetInstance().Get<ShaderManagerService>();
       auto  shaders_root   = fs::current_path() / "assets" / "shaders";
@@ -152,8 +151,9 @@ namespace glr
     static constexpr auto const flags = 
                 aiProcess_Triangulate           |
                 aiProcess_GenNormals            |
-                aiProcess_JoinIdenticalVertices;
-                // aiProcess_FlipUVs;   // glTF UV orientation fix
+                aiProcess_JoinIdenticalVertices |
+                aiProcess_GenUVCoords           |
+                aiProcess_FlipUVs;   // glTF UV orientation fix
 
     auto        importer = Assimp::Importer{};
     auto const* scene    = importer.ReadFile(path.string(), flags);
@@ -190,7 +190,9 @@ namespace glr
     auto process_mesh_fn = [&scale](const aiMesh* mesh) -> MeshData 
     {
       static constexpr auto range = std::views::iota;
-      auto mesh_data = MeshData{};
+
+      auto mesh_data           = MeshData{};
+      mesh_data.material_index = mesh->mMaterialIndex;
 
       mesh_data.vertices.reserve(mesh->mNumVertices);
       for (auto i : range(0zu, mesh->mNumVertices)) {
@@ -246,8 +248,8 @@ namespace glr
       return meshes;
     };
 
-    std::vector<MeshData> allMeshes = process_node_fn(scene->mRootNode);
-    mesh_manager.LoadMesh(name, allMeshes);
+    std::vector<MeshData> all_meshes = process_node_fn(scene->mRootNode);
+    mesh_manager.LoadModel(name, all_meshes);
   }
 
 

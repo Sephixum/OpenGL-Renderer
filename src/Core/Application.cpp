@@ -52,7 +52,7 @@ namespace glr
       reg.emplace<Component::Transform>(dummy_entity1);
       reg.emplace<Component::MeshAsset>(dummy_entity1) = {
         .mesh_tag = "FlightHelmet",
-        .albedo_texture_tag = "FlightHelmet_albedo",
+        // .albedo_texture_tag = "FlightHelmet_albedo",
       };
       reg.emplace<Component::Tag>(dummy_entity1, "dummy 1");
 
@@ -60,7 +60,7 @@ namespace glr
       auto& transform2  = reg.emplace<Component::Transform>(dummy_entity2);
       reg.emplace<Component::MeshAsset>(dummy_entity2) = {
         .mesh_tag = "Fox",
-        .albedo_texture_tag = "Fox_albedo",
+        // .albedo_texture_tag = "Fox_albedo",
       };
       reg.emplace<Component::Tag>(dummy_entity2, "dummy 2");
       transform2.position = {3.0, -5.0f, -1.0f};

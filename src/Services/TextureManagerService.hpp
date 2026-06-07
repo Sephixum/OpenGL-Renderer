@@ -19,6 +19,15 @@ namespace glr
 
       [[nodiscard]] auto GetTexture2D(std::string_view name)    -> Texture2D&;
       [[nodiscard]] auto IsTextureLoaded(std::string_view name) -> bool;
+      [[nodiscard]] auto GetAllTags() -> std::vector<std::string>
+      {
+        auto vec = std::vector<std::string>(_2d.size());
+        for (auto const& [name , _] : _2d)
+        {
+          vec.push_back(name);
+        }
+        return vec;
+      }
 
   };
 

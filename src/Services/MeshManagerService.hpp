@@ -20,11 +20,11 @@ namespace glr
     public:
       MeshManagerService();
 
-      auto LoadMesh(std::string_view name, std::span<MeshData const> meshes) -> void;
-
       virtual auto OnInit()     -> void override;
       virtual auto OnUpdate()   -> void override;
       virtual auto OnShutdown() -> void override;
+
+      auto LoadModel(std::string_view name, std::span<MeshData const> meshes) -> void;
 
       [[nodiscard]] auto GetMeshData(std::string_view name) const -> std::span<MeshView const>;
       [[nodiscard]] auto GetVertexBuffer() -> DynamicPersistantBuffer<VertexData>&    { return _vertex_data; }

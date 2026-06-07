@@ -13,6 +13,8 @@ namespace glr
     std::uint32_t index_count;
     std::uint32_t vertex_offset;
     std::uint32_t vertex_count;
+
+    std::uint32_t material_index;
   };
 
   [[nodiscard]] constexpr auto to_string(MeshView const& v)

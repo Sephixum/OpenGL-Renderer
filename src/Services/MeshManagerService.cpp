@@ -15,7 +15,7 @@ namespace glr
 
   }
 
-  auto MeshManagerService::LoadMesh(std::string_view name, std::span<MeshData const> meshes) -> void
+  auto MeshManagerService::LoadModel(std::string_view name, std::span<MeshData const> meshes) -> void
   {
     auto views = std::vector<MeshView>{};
     views.reserve(meshes.size());
@@ -29,10 +29,11 @@ namespace glr
       _index_data.Append(mesh.indices);
 
       views.push_back(MeshView{
-        .index_offset  = static_cast<std::uint32_t>(idx_start),
-        .index_count   = static_cast<std::uint32_t>(mesh.indices.size()),
-        .vertex_offset = static_cast<std::uint32_t>(vert_start),
-        .vertex_count  = static_cast<std::uint32_t>(mesh.vertices.size())
+        .index_offset   = static_cast<std::uint32_t>(idx_start),
+        .index_count    = static_cast<std::uint32_t>(mesh.indices.size()),
+        .vertex_offset  = static_cast<std::uint32_t>(vert_start),
+        .vertex_count   = static_cast<std::uint32_t>(mesh.vertices.size()),
+        .material_index = mesh.material_index
       });
     }
 

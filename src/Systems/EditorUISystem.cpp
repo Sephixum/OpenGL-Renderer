@@ -8,6 +8,7 @@
 #include "Services/ServiceLocator.hpp"
 #include "Services/MeshManagerService.hpp"
 #include "Services/WindowService.hpp"
+#include "Services/TextureManagerService.hpp"
 #include "Services/InputManagerService.hpp"
 
 #include "Components/Components.hpp"
@@ -20,6 +21,85 @@
 
 namespace glr
 {
+  auto EditorUISystem::DrawTextureViewer() -> void
+  {
+      if (!ImGui::Begin("Texture Viewer"))
+      {
+          ImGui::End();
+          return;
+      }
+  
+      auto& texture_manager = ServiceLocator::GetInstance().Get<TextureManagerService>();
+  
+      // Left panel — texture list
+      static std::string selected_tag;
+  
+      ImGui::BeginChild("TextureList", ImVec2(200, 0), ImGuiChildFlags_Borders);
+      for (auto const& tag : texture_manager.GetAllTags())
+      {
+          if (tag.empty()) continue;
+          bool selected = (selected_tag == tag);
+          if (ImGui::Selectable(tag.c_str(), selected))
+              selected_tag = tag;
+      }
+      ImGui::EndChild();
+  
+      ImGui::SameLine();
+  
+      // Right panel — texture preview
+      ImGui::BeginChild("TexturePreview", ImVec2(0, 0), ImGuiChildFlags_Borders);
+      if (!selected_tag.empty() && texture_manager.IsTextureLoaded(selected_tag))
+      {
+          auto const& tex     = texture_manager.GetTexture2D(selected_tag);
+          auto        gl_id   = (ImTextureID)(intptr_t)tex.GetID();
+          auto        width   = tex.GetWidth();
+          auto        height  = tex.GetHeight();
+  
+          ImGui::Text("Tag    : %s", selected_tag.c_str());
+          ImGui::Text("Size   : %dx%d", width, height);
+          ImGui::Separator();
+  
+          // Fit preview to available area keeping aspect ratio
+          auto avail      = ImGui::GetContentRegionAvail();
+          float aspect    = (float)width / (float)height;
+          float prev_w    = avail.x;
+          float prev_h    = prev_w / aspect;
+          if (prev_h > avail.y)
+          {
+              prev_h = avail.y;
+              prev_w = prev_h * aspect;
+          }
+  
+          ImGui::Image(gl_id, ImVec2(prev_w, prev_h));
+  
+          // Tooltip — zoomed region on hover
+          if (ImGui::IsItemHovered())
+          {
+              auto mouse      = ImGui::GetMousePos();
+              auto item_min   = ImGui::GetItemRectMin();
+              auto item_size  = ImGui::GetItemRectSize();
+              float u = (mouse.x - item_min.x) / item_size.x;
+              float v = (mouse.y - item_min.y) / item_size.y;
+  
+              constexpr float zoom_region = 0.1f; // 10% of texture
+              float u0 = glm::clamp(u - zoom_region * 0.5f, 0.0f, 1.0f - zoom_region);
+              float v0 = glm::clamp(v - zoom_region * 0.5f, 0.0f, 1.0f - zoom_region);
+              float u1 = u0 + zoom_region;
+              float v1 = v0 + zoom_region;
+  
+              ImGui::BeginTooltip();
+              ImGui::Image(gl_id, ImVec2(128, 128), ImVec2(u0, v0), ImVec2(u1, v1));
+              ImGui::EndTooltip();
+          }
+      }
+      else
+      {
+          ImGui::TextDisabled("No texture selected");
+      }
+      ImGui::EndChild();
+  
+      ImGui::End();
+  }
 
   auto EditorUISystem::DrawFileDialogs() -> void
   {
@@ -306,6 +386,7 @@ namespace glr
       DrawEntityInspector();
       DrawMainMenuBar();
       DrawFileDialogs();
+      DrawTextureViewer();
     }
 
     if((not io.WantCaptureKeyboard) and (not io.WantCaptureMouse)) input_manager.SetEnabled(true);

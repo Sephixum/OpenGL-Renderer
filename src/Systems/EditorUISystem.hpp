@@ -28,6 +28,7 @@ namespace glr
     auto DrawEntityInspector() -> void;
     auto DrawMainMenuBar()    -> void;
     auto DrawFileDialogs()    -> void;
+    auto DrawTextureViewer()  -> void;
 
     public:
       EditorUISystem(); 
