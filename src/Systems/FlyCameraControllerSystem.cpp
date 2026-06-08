@@ -1,10 +1,9 @@
-#include "Utils/Error.hpp"
-#include "Core/Application.hpp"
-
 #include "FlyCameraControllerSystem.hpp"
 
+#include "Core/Application.hpp"
+#include "Core/Event.hpp"
+
 #include "Components/Components.hpp"
-#include "Events/Event.hpp"
 
 #include "Services/ServiceLocator.hpp"
 #include "Services/InputManagerService.hpp"

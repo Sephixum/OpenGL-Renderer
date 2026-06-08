@@ -41,4 +41,9 @@ namespace glr::Event
 
   };
 
+  struct MaterialLoaded
+  {
+
+  };
+
 }

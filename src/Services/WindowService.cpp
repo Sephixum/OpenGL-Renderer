@@ -3,7 +3,7 @@
 
 #include "Utils/Log.hpp"
 #include "WindowService.hpp"
-#include "Events/Event.hpp"
+#include "Core/Event.hpp"
 #include "Utils/Exception.hpp"
 #include "Core/Application.hpp"
 

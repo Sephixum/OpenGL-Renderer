@@ -1,6 +1,7 @@
 #pragma once
 
 #include <entt/signal/fwd.hpp>
+#include <entt/entt.hpp>
 
 namespace glr
 {

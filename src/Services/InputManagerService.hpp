@@ -1,8 +1,8 @@
 #pragma once
 
 #include "IService.hpp"
-#include "Events/Event.hpp"
-#include "Events/EventBus.hpp"
+#include "Core/Event.hpp"
+#include "Core/EventBus.hpp"
 #include <bitset>
 #include <entt/signal/sigh.hpp>
 #include <glm/ext/vector_float2.hpp>

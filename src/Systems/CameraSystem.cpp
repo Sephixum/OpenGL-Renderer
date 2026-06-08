@@ -1,6 +1,6 @@
 #include "CameraSystem.hpp"
 #include "Components/Components.hpp"
-#include "Events/Event.hpp"
+#include "Core/Event.hpp"
 #include "Services/ServiceLocator.hpp"
 #include "Services/SceneManagerService.hpp"
 #include "Utils/Error.hpp"

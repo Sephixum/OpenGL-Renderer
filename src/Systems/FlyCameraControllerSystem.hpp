@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Events/Event.hpp"
-#include "Events/EventBus.hpp"
+#include "Core/Event.hpp"
+#include "Core/EventBus.hpp"
 #include "ISystem.hpp"
 #include "Components/Components.hpp"
 #include <entt/entity/fwd.hpp>

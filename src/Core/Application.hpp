@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Utils/Singleton.hpp"
-#include "Events/EventBus.hpp"
+#include "EventBus.hpp"
 
 #include <entt/entt.hpp>
 #include <entt/signal/fwd.hpp>

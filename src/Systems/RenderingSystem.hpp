@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/EventBus.hpp"
 #include "Graphics/VertexArray.hpp"
 #include "ISystem.hpp"
 #include "Graphics/GraphicsPipeline.hpp"
@@ -49,6 +50,8 @@ namespace glr
       bool lighting_pass = true;
     }
     _state = {};
+
+    EventSink _material_buffer_rebuild_sink = {};
 
     VertexArray      _vao;
     GraphicsPipeline _gbuffer_pipeline;

@@ -6,6 +6,9 @@
 #include "ShaderManagerService.hpp"
 #include "TextureManagerService.hpp"
 
+#include "Core/Application.hpp"
+#include "Core/Event.hpp"
+
 #include "Graphics/Texture.hpp"
 #include "Graphics/SamplerLibrary.hpp"
 
@@ -13,21 +16,17 @@
 #include "Utils/InRangeOf.hpp"
 #include "Utils/Utils.hpp"
 
-#include <algorithm>
 #include <assimp/material.h>
 #include <assimp/scene.h>
-#include <clocale>
 #include <assimp/types.h>
 #include <cctype>
 #include <filesystem>
-#include <string_view>
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <glm/ext/quaternion_geometric.hpp>
 #include <glm/ext/scalar_constants.hpp>
 #include <limits>
 #include <ranges>
-#include <set>
 #include <stb_image.h>
 #include <utility>
 
@@ -193,6 +192,7 @@ namespace glr
       }
 
       _global_materials.push_back(std::move(gm));
+      Application::GetInstance().GetEventBus().trigger<Event::MaterialLoaded>();
     }
 
 

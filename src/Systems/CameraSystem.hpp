@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Components/Components.hpp"
-#include "Events/Event.hpp"
-#include "Events/EventBus.hpp"
+#include "Core/Event.hpp"
+#include "Core/EventBus.hpp"
 #include "ISystem.hpp"
 #include "Core/Application.hpp"
 #include "Components/Components.hpp"

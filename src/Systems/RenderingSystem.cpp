@@ -2,6 +2,8 @@
 
 #include "RenderingSystem.hpp"
 
+#include "Core/Application.hpp"
+#include "Core/Event.hpp"
 #include "Graphics/VertexArray.hpp"
 #include "Graphics/GraphicsPipeline.hpp"
 #include "Graphics/Buffer.hpp"
@@ -48,7 +50,6 @@ namespace glr
       .SetFragmentShader(gbuffer_frag_shader)
       .Activate();
 
-    BuildGlobalMaterials();
 
     _vao.BuildSettings()
       .BindAs<BufferType::ShaderStorage>(mesh_manager.GetVertexBuffer(), 0)
@@ -61,6 +62,8 @@ namespace glr
       .Apply()
       .Activate();
 
+    BuildGlobalMaterials();
+    _material_buffer_rebuild_sink = Application::GetInstance().GetEventBus().sink<Event::MaterialLoaded>().connect<&RenderingSystem::BuildGlobalMaterials>(this);
   }
 
   auto RenderingSystem::Invoke() -> void
@@ -97,6 +100,9 @@ namespace glr
       _material_buffer.Append(gpu);
     }
 
+    _vao.BuildSettings()
+      .BindAs<BufferType::ShaderStorage>(_material_buffer, 4)
+      .Apply();
   }
 
   auto RenderingSystem::UpdateCameraBuffer() -> void

@@ -1,9 +1,9 @@
 #include "Application.hpp"
+#include "EventBus.hpp"
 
 #include "Components/include/CameraComponent.hpp"
 #include "Components/include/MeshAssetComponent.hpp"
 #include "Components/include/ProjectionComponent.hpp"
-#include "Events/EventBus.hpp"
 
 #include "Graphics/Buffer.hpp"
 #include "Graphics/GraphicsPipeline.hpp"

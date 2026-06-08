@@ -2,7 +2,6 @@ add_library(glrlib STATIC)
 
 add_subdirectory(Utils)
 add_subdirectory(Graphics)
-add_subdirectory(Events)
 add_subdirectory(Services)
 add_subdirectory(Systems)
 add_subdirectory(Core)
