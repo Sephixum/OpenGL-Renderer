@@ -58,6 +58,7 @@ namespace glr
     : _width{info.width}
     , _height{info.height}
     , _use_depthstencil{info.use_depthstencil}
+    , _name{name}
   {
     _id = {0u, [](auto e){ ::glDeleteFramebuffers(1, &e);}};
     ::glCreateFramebuffers(1, &_id);
@@ -118,13 +119,118 @@ namespace glr
     _on_resize_event_sink = Application::GetInstance().GetEventBus().sink<Event::Resize>().connect<&FrameBuffer::OnResize>(this);
   }
 
-  auto Bind()   -> void;
-  auto UnBind() -> void;
+  auto FrameBuffer::Bind()   -> void
+  {
+    ::glBindFramebuffer(GL_FRAMEBUFFER, _id);
+  }
 
-  [[nodiscard]] auto TryGetAttachment() -> Texture2D const*;
-  [[nodiscard]] auto GetAttachment()    -> Texture2D const&;
+  auto FrameBuffer::UnBind() -> void
+  {
+    ::glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  }
 
-  [[nodiscard]] auto TryGetDepthStencil() -> Texture2D const*;
-  [[nodiscard]] auto GetDepthStencil()    -> Texture2D const&;
+  auto FrameBuffer::TryGetAttachment(FramebufferSlotType t) const -> Texture2D const*
+  {
+    for (auto const& att : _attachments)
+    {
+      if (att.has_value() and att->info.slot == t )
+      {
+        return &(att->texture);
+      }
+    }
+
+    return nullptr;
+  }
+
+  auto FrameBuffer::GetAttachment(FramebufferSlotType t) const -> Texture2D const&
+  {
+    auto const* tex = TryGetAttachment(t);
+    if (!tex)
+    {
+      throw Exception{"Framebuffer slot not found"};
+    }
+    return *tex;
+  }
+
+  auto FrameBuffer::TryGetDepthStencil() const -> Texture2D const*
+  {
+    return _depth_texture.has_value() ? &(_depth_texture.value()) : nullptr;
+  }
+
+  auto FrameBuffer::GetDepthStencil() const -> Texture2D const&
+  {
+    if (not _depth_texture.has_value())
+    {
+      throw Exception{"Framebuffer has no depth/stencil attachment"};
+    }
+    return _depth_texture.value();
+  }
+
+  auto FrameBuffer::OnResize(Event::Resize const& e) -> void
+  {
+    if (static_cast<u32>(e.width) == _width and static_cast<u32>(e.height) == _height) return;
+
+    auto old_attachments = std::move(_attachments);
+    auto had_depth       = _depth_texture.has_value();
+
+    _depth_texture.reset();
+
+    _width  = e.width;
+    _height = e.height;
+
+    {
+      auto new_fbo = ::GLuint{};
+      ::glCreateFramebuffers(1, &new_fbo);
+      _id.Reset(new_fbo);
+    }
+
+    auto color_count = u64{};
+    for (auto [idx, att] : old_attachments | vws::enumerate)
+    {
+      if (not att.has_value()) continue;
+
+      auto const& old = att.value();
+      auto tex_info = Texture2DCreateInfo{
+        .width   = _width,
+        .height  = _height,
+        .format  = old.info.format,
+        .sampler = SamplerLibrary::FramebufferClamp(),
+        .data    = std::nullopt,
+        .mipmap_levels = 1
+      };
+
+      auto new_texture = Texture2D(tex_info, std::format("{}_ColorAttachment_{}", _name, to_string(old.info.slot)));
+      ::glNamedFramebufferTexture(_id, GL_COLOR_ATTACHMENT0 + color_count, new_texture.GetID(), 0);
+      _attachments[color_count].emplace(ColorAttachment{
+          .texture = std::move(new_texture),
+          .info    = old.info
+      });
+
+      ++color_count;
+    }
+
+    if (had_depth)
+    {
+      auto depth_create_info = Texture2DCreateInfo{
+        .width         = _width,
+        .height        = _height,
+        .format        = TextureFormatType::Depth24stencil8,
+        .sampler       = SamplerLibrary::ShadowMapDepth(),
+        .data          = std::nullopt,
+        .mipmap_levels = 1
+      };
+      auto new_depth_stencil = Texture2D(depth_create_info, std::format("{}_DepthStencil", _name));
+      ::glNamedFramebufferTexture(_id, GL_DEPTH_STENCIL_ATTACHMENT, new_depth_stencil.GetID(), 0);
+      _depth_texture.emplace(std::move(new_depth_stencil));
+    }
+
+    auto draw_buffers = std::vector<::GLenum>{};
+    for (auto i : InRangeOf(0zu, color_count))
+    {
+      draw_buffers.push_back(GL_COLOR_ATTACHMENT0 + i);
+    }
+    ::glNamedFramebufferDrawBuffers(_id, draw_buffers.size(), draw_buffers.data());
+    Expect((::glCheckNamedFramebufferStatus(_id, GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE), "FrameBuffer {} is incomplete !", _name);
+  }
 
 }

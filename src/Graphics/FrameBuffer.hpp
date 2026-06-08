@@ -80,6 +80,7 @@ namespace glr
     std::array<std::optional<ColorAttachment>, 8> _attachments;
     std::optional<Texture2D>                      _depth_texture;
     bool                                          _use_depthstencil;
+    std::string                                   _name;
 
     auto OnResize(Event::Resize const& e) -> void;
 
@@ -89,11 +90,11 @@ namespace glr
       auto Bind()   -> void;
       auto UnBind() -> void;
 
-      [[nodiscard]] auto TryGetAttachment() -> Texture2D const*;
-      [[nodiscard]] auto GetAttachment()    -> Texture2D const&;
+      [[nodiscard]] auto TryGetAttachment(FramebufferSlotType t) const -> Texture2D const*;
+      [[nodiscard]] auto GetAttachment(FramebufferSlotType t)    const -> Texture2D const&;
 
-      [[nodiscard]] auto TryGetDepthStencil() -> Texture2D const*;
-      [[nodiscard]] auto GetDepthStencil()    -> Texture2D const&;
+      [[nodiscard]] auto TryGetDepthStencil() const -> Texture2D const*;
+      [[nodiscard]] auto GetDepthStencil()    const -> Texture2D const&;
 
   };
 

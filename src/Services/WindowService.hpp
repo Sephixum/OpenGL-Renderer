@@ -2,6 +2,7 @@
 
 #include "Services/IService.hpp"
 #include "Utils/UniqueHandle.hpp"
+#include "Utils/Utils.hpp"
 
 #include <GLFW/glfw3.h>
 #include <cstdint>
@@ -26,7 +27,10 @@ namespace glr
       auto SwapBuffers() -> void;
       auto PollEvents()  -> void;
 
-      auto GetHandle() -> ::GLFWwindow* { return _handle; }
+      [[nodiscard]] auto GetHandle() -> ::GLFWwindow* { return _handle; }
+
+      [[nodiscard]] auto GetWindowWidth()  const -> u32;
+      [[nodiscard]] auto GetWindowHeight() const -> u32;
   };
 
 }

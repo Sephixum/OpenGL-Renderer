@@ -4,6 +4,8 @@
 
 #include "Core/Application.hpp"
 #include "Core/Event.hpp"
+#include "Graphics/FrameBuffer.hpp"
+#include "Graphics/Texture.hpp"
 #include "Graphics/VertexArray.hpp"
 #include "Graphics/GraphicsPipeline.hpp"
 #include "Graphics/Buffer.hpp"
@@ -14,6 +16,7 @@
 #include "Services/SceneManagerService.hpp"
 #include "Services/ResourceLoaderService.hpp"
 #include "Services/TextureManagerService.hpp"
+#include "Services/WindowService.hpp"
 
 #include "Utils/InRangeOf.hpp"
 
@@ -26,12 +29,61 @@
 #include <unordered_map>
 #include <entt/entt.hpp>
 
+namespace
+{
+
+  [[nodiscard]] auto CreateGBufferInfo() -> glr::FramebufferCreateInfo
+  {
+    auto&      window   = glr::ServiceLocator::GetInstance().Get<glr::WindowService>();
+    auto const window_w = window.GetWindowWidth();
+    auto const window_h = window.GetWindowHeight();
+    auto       info     = glr::FramebufferCreateInfo{};
+
+    info.width          = window_w;
+    info.height         = window_h;
+
+    info.color_attachments[0] = glr::FramebufferAttachmentCreateInfo{
+      .format = glr::TextureFormatType::Rgba8unorm,
+      .width  = 0,
+      .height = 0,
+      .slot   = glr::FramebufferSlotType::Albedo
+    };
+
+    info.color_attachments[1] = glr::FramebufferAttachmentCreateInfo{
+      .format = glr::TextureFormatType::Rgba16f,
+      .width  = 0,
+      .height = 0,
+      .slot   = glr::FramebufferSlotType::Normal
+    };
+
+    info.color_attachments[2] = glr::FramebufferAttachmentCreateInfo{
+      .format = glr::TextureFormatType::Rgba32f,
+      .width  = 0,
+      .height = 0,
+      .slot   = glr::FramebufferSlotType::Position
+    };
+
+    info.color_attachments[3] = glr::FramebufferAttachmentCreateInfo{
+      .format = glr::TextureFormatType::Rg8unorm,
+      .width  = 0,
+      .height = 0,
+      .slot   = glr::FramebufferSlotType::Material
+    };
+
+    info.use_depthstencil = true;
+
+    return info;
+  };
+
+}
+
 namespace glr
 {
 
   RenderingSystem::RenderingSystem()
     : _vao{"Dummy VertexArray"}
     , _gbuffer_pipeline("Gbuffer GraphicsPipeline")
+    , _gbuffer_frame_buffer(CreateGBufferInfo(), "Gbuffer FrameBuffer")
     , _indirect_buffer(10, "Indirect Command Buffer")
     , _instance_buffer(10, "Instance Data Buffer")
     , _camera_buffer(1, "Camera Data Buffer")
@@ -45,11 +97,13 @@ namespace glr
 
     auto& gbuffer_vert_shader = shader_manager.GetVertexShader("gbuffer");
     auto& gbuffer_frag_shader = shader_manager.GetFragmentShader("gbuffer");
+
+    
+
     _gbuffer_pipeline
       .SetVertexShader(gbuffer_vert_shader)
       .SetFragmentShader(gbuffer_frag_shader)
       .Activate();
-
 
     _vao.BuildSettings()
       .BindAs<BufferType::ShaderStorage>(mesh_manager.GetVertexBuffer(), 0)
@@ -127,6 +181,9 @@ namespace glr
     [[maybe_unused]] auto& mesh_manager    = ServiceLocator::GetInstance().Get<MeshManagerService>();
     [[maybe_unused]] auto& texture_manager = ServiceLocator::GetInstance().Get<TextureManagerService>();
     auto& reg             = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene().registry;
+
+    _gbuffer_frame_buffer.Bind();
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     auto view = reg.view<Component::MeshAsset, Component::Transform>();
 
@@ -221,6 +278,19 @@ namespace glr
         _indirect_buffer.Size(),
         0
     );
+
+    _gbuffer_frame_buffer.UnBind();
+
+    // Before the blit, set which attachment to read from
+    glNamedFramebufferReadBuffer(_gbuffer_frame_buffer.GetID(), GL_COLOR_ATTACHMENT0); // albedo
+    
+    auto&      window   = glr::ServiceLocator::GetInstance().Get<glr::WindowService>();
+    // Then blit
+    glBlitNamedFramebuffer(_gbuffer_frame_buffer.GetID(), 0,
+                            0, 0, window.GetWindowWidth(), window.GetWindowHeight(),
+                            0, 0, window.GetWindowWidth(), window.GetWindowHeight(),
+                            GL_COLOR_BUFFER_BIT,
+                            GL_NEAREST);
   }
 
 }

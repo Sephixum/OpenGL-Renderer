@@ -98,4 +98,20 @@ namespace glr
     ::glfwPollEvents();
   }
 
+
+
+  auto WindowService::GetWindowWidth()  const -> u32
+  {
+    auto w = i32{};
+    glfwGetWindowSize(_handle, &w, nullptr);
+    return w;
+  }
+
+  auto WindowService::GetWindowHeight() const -> u32
+  {
+    auto h = i32{};
+    glfwGetWindowSize(_handle, nullptr, &h);
+    return h;
+  }
+
 }

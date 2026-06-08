@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/EventBus.hpp"
+#include "Graphics/FrameBuffer.hpp"
 #include "Graphics/VertexArray.hpp"
 #include "ISystem.hpp"
 #include "Graphics/GraphicsPipeline.hpp"
@@ -54,13 +55,16 @@ namespace glr
     EventSink _material_buffer_rebuild_sink = {};
 
     VertexArray      _vao;
+
     GraphicsPipeline _gbuffer_pipeline;
+    FrameBuffer      _gbuffer_frame_buffer;
 
     DynamicPersistantBuffer<DrawIndirectCommand> _indirect_buffer;
     DynamicPersistantBuffer<InstanceData>        _instance_buffer;
     DynamicPersistantBuffer<CameraData>          _camera_buffer;
     DynamicPersistantBuffer<GPUMaterial>         _material_buffer;
     DynamicPersistantBuffer<u32>                 _draw_material_indices_buffer;
+
 
     auto RenderGBuffer() -> void;
     auto UpdateCameraBuffer() -> void;
