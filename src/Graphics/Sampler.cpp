@@ -1,4 +1,5 @@
 #include "Sampler.hpp"
+#include "Utils/Utils.hpp"
 
 #include <utility>
 #include <algorithm>
@@ -12,7 +13,7 @@ namespace glr
     // Used to clamp invalid values
     static float const max_anisotropy = []
     {
-      auto max = float{};
+      auto max = f32{};
       ::glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &max);
       return max;
     }();
@@ -32,6 +33,16 @@ namespace glr
           GL_TEXTURE_MAX_ANISOTROPY,
           std::clamp(info.anisotropy_samples.value(), 1.0f, max_anisotropy)
       );
+    }
+
+    if (info.compare_func.has_value())
+    {
+      ::glSamplerParameteri(_id, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+      ::glSamplerParameteri(_id, GL_TEXTURE_COMPARE_FUNC, std::to_underlying(info.compare_func.value()));
+    }
+    else
+    {
+      ::glSamplerParameteri(_id, GL_TEXTURE_COMPARE_MODE, GL_NONE);
     }
 
     ::glObjectLabel(GL_SAMPLER, _id, name.length(), name.data());

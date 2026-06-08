@@ -13,7 +13,7 @@
 namespace glr
 {
 
-  enum struct TextureFormat 
+  enum struct TextureFormatType
   {
     // 8‑bit unsigned normalized (LDR colour)
     R8unorm      = GL_R8,
@@ -55,7 +55,7 @@ namespace glr
   {
     std::uint32_t                         width;
     std::uint32_t                         height;
-    TextureFormat                         format;
+    TextureFormatType                         format;
     class Sampler const&                  sampler;
     std::optional<std::vector<std::byte>> data          = std::nullopt;
     std::uint32_t                         mipmap_levels = 0;

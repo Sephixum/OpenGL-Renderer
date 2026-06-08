@@ -323,7 +323,7 @@ namespace glr
     {
       .width   = static_cast<u32>(width),
       .height  = static_cast<u32>(height),
-      .format  = TextureFormat::Rgba8unorm,
+      .format  = TextureFormatType::Rgba8unorm,
       .sampler = SamplerLibrary::ModelMipmapAniso16x(),
       .data    = std::vector<std::byte>{reinterpret_cast<std::byte*>(pixels_data),
                                         reinterpret_cast<std::byte*>(pixels_data) + width * height * 4},

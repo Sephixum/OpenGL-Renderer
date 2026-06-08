@@ -8,10 +8,10 @@ namespace glr::SamplerLibrary
   inline const Sampler& ModelMipmapRepeat() {
     static const Sampler s(
       SamplerCreateInfo{
-          .min_filter = MinFilterType::LinearMipMapLinear,
-          .mag_filter = MagFilterType::Linear,
-          .wrap_s     = WrapMode::Repeat,
-          .wrap_t     = WrapMode::Repeat
+          .min_filter = SamplerMinFilterType::LinearMipMapLinear,
+          .mag_filter = SamplerMagFilterType::Linear,
+          .wrap_s     = SamplerWrapModeType::Repeat,
+          .wrap_t     = SamplerWrapModeType::Repeat
           // NO anisotropy_samples – stays std::nullopt
       },
       "ModelMipmapRepeat"
@@ -25,10 +25,10 @@ namespace glr::SamplerLibrary
   inline const Sampler& HighQualityModel() {
     static const Sampler s(
       SamplerCreateInfo{
-          .min_filter = MinFilterType::LinearMipMapLinear,
-          .mag_filter = MagFilterType::Linear,
-          .wrap_s     = WrapMode::Repeat,
-          .wrap_t     = WrapMode::Repeat,
+          .min_filter = SamplerMinFilterType::LinearMipMapLinear,
+          .mag_filter = SamplerMagFilterType::Linear,
+          .wrap_s     = SamplerWrapModeType::Repeat,
+          .wrap_t     = SamplerWrapModeType::Repeat,
           .anisotropy_samples = 8.0f
       },
       "HighQualityModel"
@@ -42,10 +42,10 @@ namespace glr::SamplerLibrary
   inline const Sampler& LowQualityModel() {
     static const Sampler s(
       SamplerCreateInfo{
-          .min_filter = MinFilterType::Linear,
-          .mag_filter = MagFilterType::Linear,
-          .wrap_s     = WrapMode::Repeat,
-          .wrap_t     = WrapMode::Repeat
+          .min_filter = SamplerMinFilterType::Linear,
+          .mag_filter = SamplerMagFilterType::Linear,
+          .wrap_s     = SamplerWrapModeType::Repeat,
+          .wrap_t     = SamplerWrapModeType::Repeat
           // no anisotropy
       },
       "LowQualityModel"
@@ -59,10 +59,10 @@ namespace glr::SamplerLibrary
   inline const Sampler& Framebuffer() {
     static const Sampler s(
         SamplerCreateInfo{
-            .min_filter = MinFilterType::Linear,
-            .mag_filter = MagFilterType::Linear,
-            .wrap_s     = WrapMode::ClampToEdge,
-            .wrap_t     = WrapMode::ClampToEdge
+            .min_filter = SamplerMinFilterType::Linear,
+            .mag_filter = SamplerMagFilterType::Linear,
+            .wrap_s     = SamplerWrapModeType::ClampToEdge,
+            .wrap_t     = SamplerWrapModeType::ClampToEdge
         },
         "Framebuffer"
     );
@@ -75,10 +75,10 @@ namespace glr::SamplerLibrary
   inline const Sampler& ModelMipmapAniso2x() {
     static const Sampler s(
         SamplerCreateInfo{
-            .min_filter = MinFilterType::LinearMipMapLinear,
-            .mag_filter = MagFilterType::Linear,
-            .wrap_s     = WrapMode::Repeat,
-            .wrap_t     = WrapMode::Repeat,
+            .min_filter = SamplerMinFilterType::LinearMipMapLinear,
+            .mag_filter = SamplerMagFilterType::Linear,
+            .wrap_s     = SamplerWrapModeType::Repeat,
+            .wrap_t     = SamplerWrapModeType::Repeat,
             .anisotropy_samples = 2.0f
         },
         "ModelMipmapAniso2x"
@@ -89,10 +89,10 @@ namespace glr::SamplerLibrary
   inline const Sampler& ModelMipmapAniso4x() {
     static const Sampler s(
         SamplerCreateInfo{
-            .min_filter = MinFilterType::LinearMipMapLinear,
-            .mag_filter = MagFilterType::Linear,
-            .wrap_s     = WrapMode::Repeat,
-            .wrap_t     = WrapMode::Repeat,
+            .min_filter = SamplerMinFilterType::LinearMipMapLinear,
+            .mag_filter = SamplerMagFilterType::Linear,
+            .wrap_s     = SamplerWrapModeType::Repeat,
+            .wrap_t     = SamplerWrapModeType::Repeat,
             .anisotropy_samples = 4.0f
         },
         "ModelMipmapAniso4x"
@@ -103,10 +103,10 @@ namespace glr::SamplerLibrary
   inline const Sampler& ModelMipmapAniso8x() {
     static const Sampler s(
         SamplerCreateInfo{
-            .min_filter = MinFilterType::LinearMipMapLinear,
-            .mag_filter = MagFilterType::Linear,
-            .wrap_s     = WrapMode::Repeat,
-            .wrap_t     = WrapMode::Repeat,
+            .min_filter = SamplerMinFilterType::LinearMipMapLinear,
+            .mag_filter = SamplerMagFilterType::Linear,
+            .wrap_s     = SamplerWrapModeType::Repeat,
+            .wrap_t     = SamplerWrapModeType::Repeat,
             .anisotropy_samples = 8.0f
         },
         "ModelMipmapAniso8x"
@@ -117,10 +117,10 @@ namespace glr::SamplerLibrary
   inline const Sampler& ModelMipmapAniso16x() {
     static const Sampler s(
         SamplerCreateInfo{
-            .min_filter = MinFilterType::LinearMipMapLinear,
-            .mag_filter = MagFilterType::Linear,
-            .wrap_s     = WrapMode::Repeat,
-            .wrap_t     = WrapMode::Repeat,
+            .min_filter = SamplerMinFilterType::LinearMipMapLinear,
+            .mag_filter = SamplerMagFilterType::Linear,
+            .wrap_s     = SamplerWrapModeType::Repeat,
+            .wrap_t     = SamplerWrapModeType::Repeat,
             .anisotropy_samples = 16.0f
         },
         "ModelMipmapAniso16x"
@@ -128,4 +128,18 @@ namespace glr::SamplerLibrary
     return s;
   }
 
-} // namespace glr::SamplerLibrary
+  inline const Sampler& ShadowMapDepth() 
+  {
+    static const Sampler s(
+      SamplerCreateInfo{
+          .min_filter   = SamplerMinFilterType::Linear,
+          .mag_filter   = SamplerMagFilterType::Linear,
+          .wrap_s       = SamplerWrapModeType::ClampToEdge,
+          .wrap_t       = SamplerWrapModeType::ClampToEdge,
+          .compare_func = SamplerCompareFuncType::Lequal
+      },
+      "ShadowMapDepth");
+    return s;
+  }
+
+}

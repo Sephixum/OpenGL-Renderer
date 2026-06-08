@@ -26,11 +26,11 @@ namespace
     GLenum data_type;
   };
 
-  [[nodiscard]] constexpr auto UploadInfo(glr::TextureFormat f) -> TextureUploadInfo
+  [[nodiscard]] constexpr auto UploadInfo(glr::TextureFormatType f) -> TextureUploadInfo
   {
     switch (f)
     {
-      using enum glr::TextureFormat;
+      using enum glr::TextureFormatType;
       case R8unorm         : return {GL_RED , GL_UNSIGNED_BYTE};
       case Rg8unorm        : return {GL_RG  , GL_UNSIGNED_BYTE};
       case Rgb8unorm       : return {GL_RGB , GL_UNSIGNED_BYTE};
