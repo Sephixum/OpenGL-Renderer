@@ -13,7 +13,9 @@ namespace glr
   {
     struct State
     {
-      bool show_debug_info = true;
+      bool show_debug_info       = true;
+      bool show_entity_heirarchy = true;
+      bool show_texture_viewer   = true;
 
       // Gizmo
       entt::entity        selected_entity = entt::null;

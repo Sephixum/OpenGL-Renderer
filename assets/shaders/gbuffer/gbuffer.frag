@@ -1,39 +1,52 @@
 #version 460 core
 #extension GL_ARB_bindless_texture : require
 
-layout(location = 0) in flat uvec2 in_albedo_bindless_handle;
-layout(location = 1) in vec2 in_uv;
-layout(location = 2) in vec3 in_normal;
+layout(location = 0) in vec2 in_uv;
+layout(location = 1) in vec3 in_normal;
+layout(location = 2) flat in int in_draw_id;
 
-const vec3 light_dir    = normalize(vec3(1.0, 2.0, 1.0));
-const vec3 light_color  = vec3(1.0, 1.0, 1.0);
+struct GPUMaterial 
+{
+  uvec2 albedo_handle;
+  uvec2 normal_handle;
+  uvec2 roughness_handle;
+  uvec2 metallic_handle;
+};
 
-const float ambient_strength = 0.15;
+layout(std430, binding = 3) readonly buffer DrawMaterialIndicesBuffer 
+{
+  uint material_index_data[];
+};
+
+layout(std430, binding = 4) readonly buffer GPUMaterialBuffer 
+{
+  GPUMaterial material_data[];
+};
 
 layout(location = 0) out vec4 out_color;
 
-void main()
+// Lighting constants (example)
+const vec3  light_dir        = normalize(vec3(1.0, 2.0, 1.0));
+const vec3  light_color      = vec3(1.0);
+const float ambient_strength = 0.15;
+
+void main() 
 {
+  uint         material_index = material_index_data[in_draw_id];
+  GPUMaterial  mat            = material_data[material_index];
+
   vec4 albedo = vec4(1.0);
-  if (in_albedo_bindless_handle != uvec2(0))
+  if (mat.albedo_handle != uvec2(0)) 
   {
-    sampler2D albedo_sampler = sampler2D(in_albedo_bindless_handle);
-    albedo                   = texture(albedo_sampler, in_uv);
+    sampler2D s = sampler2D(mat.albedo_handle);
+    albedo = texture(s, in_uv);
   }
-  else
-  {
-    albedo = vec4(1.0);
-  }
-  vec3 normal = normalize(in_normal);
 
-  // Diffuse: only positive, but that's okay – back faces get 0 here
-  float diff    = max(dot(normal, light_dir), 0.0);
+  vec3  N       = normalize(in_normal);
+  float diff    = max(dot(N, light_dir), 0.0);
+  vec3  ambient = ambient_strength * light_color;
   vec3  diffuse = diff * light_color;
+  vec3  result  = (ambient + diffuse) * albedo.rgb;
 
-  // Ambient: constant low light
-  vec3 ambient = ambient_strength * light_color;
-
-  // Combine
-  vec3 result = (ambient + diffuse) * albedo.rgb;
-  out_color = vec4(result, 1.0);
+  out_color = vec4(result, albedo.a);
 }

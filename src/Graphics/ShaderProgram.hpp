@@ -16,7 +16,7 @@
 namespace glr 
 {
 
-  namespace stdfs = std::filesystem;
+  namespace fs = std::filesystem;
   
   enum struct ShaderStage
   {
@@ -30,7 +30,7 @@ namespace glr
   {
     std::string _name;
 
-    static auto GetShaderSource(stdfs::path const& path) -> std::string
+    static auto GetShaderSource(fs::path const& path) -> std::string
     {
       auto file = std::ifstream{path};
       if (not file)
@@ -54,7 +54,7 @@ namespace glr
     }
 
     public:
-      ShaderProgram(stdfs::path const& path, std::string_view name = "Unknown ShaderProgram")
+      ShaderProgram(fs::path const& path, std::string_view name = "Unknown ShaderProgram")
         : _name{name}
       {
 

@@ -13,6 +13,8 @@
 
 #include "Components/Components.hpp"
 
+#include "Utils/Utils.hpp"
+
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
@@ -23,82 +25,83 @@ namespace glr
 {
   auto EditorUISystem::DrawTextureViewer() -> void
   {
-      if (!ImGui::Begin("Texture Viewer"))
+    if (not _state.show_texture_viewer) return;
+
+    auto& texture_manager = ServiceLocator::GetInstance().Get<TextureManagerService>();
+
+    ImGui::Begin("Texture Viewer", &_state.show_texture_viewer);
+
+    // Left panel — texture list
+    static std::string selected_tag;
+
+    ImGui::BeginChild("TextureList", ImVec2(200, 0), ImGuiChildFlags_Borders | ImGuiChildFlags_ResizeX);
+    for (auto const& tag : texture_manager.GetAllTags())
+    {
+      if (tag.empty()) continue;
+
+      auto selected = (selected_tag == tag);
+      if (ImGui::Selectable(tag.c_str(), selected))
       {
-          ImGui::End();
-          return;
+        selected_tag = tag;
       }
-  
-      auto& texture_manager = ServiceLocator::GetInstance().Get<TextureManagerService>();
-  
-      // Left panel — texture list
-      static std::string selected_tag;
-  
-      ImGui::BeginChild("TextureList", ImVec2(200, 0), ImGuiChildFlags_Borders);
-      for (auto const& tag : texture_manager.GetAllTags())
+    }
+    ImGui::EndChild();
+
+    ImGui::SameLine();
+
+    // Right panel — texture preview
+    ImGui::BeginChild("TexturePreview", ImVec2(0, 0), ImGuiChildFlags_Borders);
+    if (not selected_tag.empty() and texture_manager.IsTextureLoaded(selected_tag))
+    {
+      auto const& tex     = texture_manager.GetTexture2D(selected_tag);
+      auto        gl_id   = (ImTextureID)(intptr_t)tex.GetID();
+      auto        width   = tex.GetWidth();
+      auto        height  = tex.GetHeight();
+
+      ImGui::Text("Tag    : %s", selected_tag.c_str());
+      ImGui::Text("Size   : %dx%d", width, height);
+      ImGui::Separator();
+
+      // Fit preview to available area keeping aspect ratio
+      auto avail      = ImGui::GetContentRegionAvail();
+      f32  aspect    = (float)width / (float)height;
+      f32  prev_w    = avail.x;
+      f32  prev_h    = prev_w / aspect;
+      if (prev_h > avail.y)
       {
-          if (tag.empty()) continue;
-          bool selected = (selected_tag == tag);
-          if (ImGui::Selectable(tag.c_str(), selected))
-              selected_tag = tag;
+        prev_h = avail.y;
+        prev_w = prev_h * aspect;
       }
-      ImGui::EndChild();
-  
-      ImGui::SameLine();
-  
-      // Right panel — texture preview
-      ImGui::BeginChild("TexturePreview", ImVec2(0, 0), ImGuiChildFlags_Borders);
-      if (!selected_tag.empty() && texture_manager.IsTextureLoaded(selected_tag))
+
+      ImGui::Image(gl_id, ImVec2(prev_w, prev_h));
+
+      // Tooltip — zoomed region on hover
+      if (ImGui::IsItemHovered())
       {
-          auto const& tex     = texture_manager.GetTexture2D(selected_tag);
-          auto        gl_id   = (ImTextureID)(intptr_t)tex.GetID();
-          auto        width   = tex.GetWidth();
-          auto        height  = tex.GetHeight();
-  
-          ImGui::Text("Tag    : %s", selected_tag.c_str());
-          ImGui::Text("Size   : %dx%d", width, height);
-          ImGui::Separator();
-  
-          // Fit preview to available area keeping aspect ratio
-          auto avail      = ImGui::GetContentRegionAvail();
-          float aspect    = (float)width / (float)height;
-          float prev_w    = avail.x;
-          float prev_h    = prev_w / aspect;
-          if (prev_h > avail.y)
-          {
-              prev_h = avail.y;
-              prev_w = prev_h * aspect;
-          }
-  
-          ImGui::Image(gl_id, ImVec2(prev_w, prev_h));
-  
-          // Tooltip — zoomed region on hover
-          if (ImGui::IsItemHovered())
-          {
-              auto mouse      = ImGui::GetMousePos();
-              auto item_min   = ImGui::GetItemRectMin();
-              auto item_size  = ImGui::GetItemRectSize();
-              float u = (mouse.x - item_min.x) / item_size.x;
-              float v = (mouse.y - item_min.y) / item_size.y;
-  
-              constexpr float zoom_region = 0.1f; // 10% of texture
-              float u0 = glm::clamp(u - zoom_region * 0.5f, 0.0f, 1.0f - zoom_region);
-              float v0 = glm::clamp(v - zoom_region * 0.5f, 0.0f, 1.0f - zoom_region);
-              float u1 = u0 + zoom_region;
-              float v1 = v0 + zoom_region;
-  
-              ImGui::BeginTooltip();
-              ImGui::Image(gl_id, ImVec2(128, 128), ImVec2(u0, v0), ImVec2(u1, v1));
-              ImGui::EndTooltip();
-          }
+        auto mouse      = ImGui::GetMousePos();
+        auto item_min   = ImGui::GetItemRectMin();
+        auto item_size  = ImGui::GetItemRectSize();
+        f32  u          = (mouse.x - item_min.x) / item_size.x;
+        f32  v          = (mouse.y - item_min.y) / item_size.y;
+
+        constexpr f32 zoom_region = 0.1f; // 10% of texture
+        f32 u0 = glm::clamp(u - zoom_region * 0.5f, 0.0f, 1.0f - zoom_region);
+        f32 v0 = glm::clamp(v - zoom_region * 0.5f, 0.0f, 1.0f - zoom_region);
+        f32 u1 = u0 + zoom_region;
+        f32 v1 = v0 + zoom_region;
+
+        ImGui::BeginTooltip();
+        ImGui::Image(gl_id, ImVec2(128, 128), ImVec2(u0, v0), ImVec2(u1, v1));
+        ImGui::EndTooltip();
       }
-      else
-      {
-          ImGui::TextDisabled("No texture selected");
-      }
-      ImGui::EndChild();
-  
-      ImGui::End();
+    }
+    else
+    {
+      ImGui::TextDisabled("No texture selected");
+    }
+    ImGui::EndChild();
+
+    ImGui::End();
   }
 
   auto EditorUISystem::DrawFileDialogs() -> void
@@ -121,6 +124,7 @@ namespace glr
   {
     if (ImGui::BeginMainMenuBar())
     {
+
       if (ImGui::BeginMenu("File"))
       {
         if (ImGui::MenuItem("Load Model...", "Ctrl+L"))
@@ -129,9 +133,19 @@ namespace glr
         }
         ImGui::EndMenu();
       }
+
+      if (ImGui::BeginMenu("Views"))
+      {
+        ImGui::MenuItem("Entity Heirarchy", nullptr, &_state.show_entity_heirarchy);
+        ImGui::MenuItem("Debug Info", nullptr, &_state.show_debug_info);
+        ImGui::MenuItem("Texture Viewer", nullptr, &_state.show_texture_viewer);
+
+        ImGui::EndMenu();
+      }
       ImGui::EndMainMenuBar();
     }
   }
+  
 
   auto EditorUISystem::DrawEntityInspector() -> void
   {
@@ -255,16 +269,18 @@ namespace glr
 
   auto EditorUISystem::DrawDebugInfoWindow() -> void
   {
+    if (not _state.show_debug_info) return;
+
     ImGui::Begin("Debug Info", &_state.show_debug_info);
-
-    auto& timer = ServiceLocator::GetInstance().Get<TimerService>();
-    auto  fps   = (timer.GetDeltaSeconds() > 0.0) ? (1.0 / timer.GetDeltaSeconds()) : 0.0;
-    ImGui::Text("FPS       : %.3f", fps);
-    ImGui::Text("Frame     : %lu",     timer.GetFrameCount());
-    ImGui::Text("Delta     : %.3f ms", timer.GetDeltaSeconds() * 1000.0);
-    ImGui::Text("Elapsed   : %.1f s", std::chrono::duration<double>(timer.GetElapsedTime()).count());
-    ImGui::Text("Time Scale: %.2f", timer.GetTimeScale());
-
+    {
+      auto& timer = ServiceLocator::GetInstance().Get<TimerService>();
+      auto  fps   = (timer.GetDeltaSeconds() > 0.0) ? (1.0 / timer.GetDeltaSeconds()) : 0.0;
+      ImGui::Text("FPS       : %.3f", fps);
+      ImGui::Text("Frame     : %lu",     timer.GetFrameCount());
+      ImGui::Text("Delta     : %.3f ms", timer.GetDeltaSeconds() * 1000.0);
+      ImGui::Text("Elapsed   : %.1f s", std::chrono::duration<double>(timer.GetElapsedTime()).count());
+      ImGui::Text("Time Scale: %.2f", timer.GetTimeScale());
+    }
     ImGui::End();
   }
 
@@ -328,7 +344,9 @@ namespace glr
 
   auto EditorUISystem::DrawHierarchyWindow() -> void
   {
-    ImGui::Begin("Hierarchy");
+    if (not _state.show_entity_heirarchy) return;
+
+    ImGui::Begin("Hierarchy", &_state.show_entity_heirarchy);
 
     auto& reg  = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene().registry;
     auto  view = reg.view<Component::Transform, Component::Tag>();
@@ -343,7 +361,7 @@ namespace glr
       }
     }
 
-    if (ImGui::IsWindowHovered() and ImGui::IsMouseClicked(0))
+    if (ImGui::IsWindowHovered() and ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
       _state.selected_entity = entt::null;
     }
@@ -377,19 +395,21 @@ namespace glr
     auto& io            = ImGui::GetIO();
     auto& input_manager = ServiceLocator::GetInstance().Get<InputManagerService>();
 
-    if(io.WantCaptureKeyboard or io.WantCaptureMouse) input_manager.SetEnabled(false);
+    if(io.WantCaptureKeyboard)  input_manager.SetKeyboardEnabled(false);
+    if(io.WantCaptureMouse)     input_manager.SetMouseEnabled(false);
 
     {
-      if (_state.show_debug_info) DrawDebugInfoWindow();
+      DrawDebugInfoWindow();
       DrawHierarchyWindow();
-      DrawGizmo();
+      DrawTextureViewer();
       DrawEntityInspector();
+      DrawGizmo();
       DrawMainMenuBar();
       DrawFileDialogs();
-      DrawTextureViewer();
     }
 
-    if((not io.WantCaptureKeyboard) and (not io.WantCaptureMouse)) input_manager.SetEnabled(true);
+    if(not io.WantCaptureKeyboard)  input_manager.SetKeyboardEnabled(true);
+    if(not io.WantCaptureMouse)     input_manager.SetMouseEnabled(true);
   }
 
   auto EditorUISystem::BeginFrame() -> void

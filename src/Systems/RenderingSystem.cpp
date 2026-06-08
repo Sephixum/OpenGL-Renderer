@@ -10,7 +10,10 @@
 #include "Services/ServiceLocator.hpp"
 #include "Services/ShaderManagerService.hpp"
 #include "Services/SceneManagerService.hpp"
+#include "Services/ResourceLoaderService.hpp"
 #include "Services/TextureManagerService.hpp"
+
+#include "Utils/InRangeOf.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -26,14 +29,17 @@ namespace glr
 
   RenderingSystem::RenderingSystem()
     : _vao{"Dummy VertexArray"}
-    , _gbuffer_pipeline("gbuffer GraphicsPipeline")
+    , _gbuffer_pipeline("Gbuffer GraphicsPipeline")
     , _indirect_buffer(10, "Indirect Command Buffer")
     , _instance_buffer(10, "Instance Data Buffer")
     , _camera_buffer(1, "Camera Data Buffer")
+    , _material_buffer(10, "GlobalMaterials Buffer")
+    , _draw_material_indices_buffer(256, "DrawMaterialIndices")
   {
     glEnable(GL_DEPTH_TEST);
 
     auto& shader_manager = ServiceLocator::GetInstance().Get<ShaderManagerService>();
+    auto& mesh_manager   = ServiceLocator::GetInstance().Get<MeshManagerService>();
 
     auto& gbuffer_vert_shader = shader_manager.GetVertexShader("gbuffer");
     auto& gbuffer_frag_shader = shader_manager.GetFragmentShader("gbuffer");
@@ -42,12 +48,55 @@ namespace glr
       .SetFragmentShader(gbuffer_frag_shader)
       .Activate();
 
+    BuildGlobalMaterials();
+
+    _vao.BuildSettings()
+      .BindAs<BufferType::ShaderStorage>(mesh_manager.GetVertexBuffer(), 0)
+      .BindAs<BufferType::ShaderStorage>(_camera_buffer, 1)
+      .BindAs<BufferType::ShaderStorage>(_instance_buffer, 2)
+      .BindAs<BufferType::ShaderStorage>(_draw_material_indices_buffer, 3)
+      .BindAs<BufferType::ShaderStorage>(_material_buffer, 4)
+      .BindAs<BufferType::Index>(mesh_manager.GetIndexBuffer())
+      .BindAs<BufferType::DrawIndirect>(_indirect_buffer)
+      .Apply()
+      .Activate();
+
   }
 
   auto RenderingSystem::Invoke() -> void
   {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     if (_state.gbuffer_pass) RenderGBuffer();
+  }
+
+  auto RenderingSystem::BuildGlobalMaterials() -> void
+  {
+    auto& res_ldr = ServiceLocator::GetInstance().Get<ResourceLoaderService>();
+    auto& tex_mgr = ServiceLocator::GetInstance().Get<TextureManagerService>();
+    _material_buffer.Clear();
+
+    for (auto const& mat : res_ldr.GetGlobalMaterial())
+    {
+      auto gpu = GPUMaterial{};
+      if (auto* tex = (not mat.albedo_tag.empty() ? tex_mgr.TeyGetTexture2D(mat.albedo_tag) : nullptr))
+      {
+        gpu.albedo_handle = tex->GetBindlessHandle();
+      }
+      if (auto* tex = (not mat.normal_tag.empty() ? tex_mgr.TeyGetTexture2D(mat.normal_tag) : nullptr))
+      {
+        gpu.normal_handle = tex->GetBindlessHandle();
+      }
+      if (auto* tex = (not mat.roughness_tag.empty() ? tex_mgr.TeyGetTexture2D(mat.roughness_tag) : nullptr))
+      {
+        gpu.roughness_handle = tex->GetBindlessHandle();
+      }
+      if (auto* tex = (not mat.metalic_tag.empty() ? tex_mgr.TeyGetTexture2D(mat.metalic_tag) : nullptr))
+      {
+        gpu.metallic_handle = tex->GetBindlessHandle();
+      }
+      _material_buffer.Append(gpu);
+    }
+
   }
 
   auto RenderingSystem::UpdateCameraBuffer() -> void
@@ -72,10 +121,9 @@ namespace glr
 
   auto RenderingSystem::RenderGBuffer() -> void
   {
-    static constexpr auto range = std::views::iota;
-
-    auto& mesh_manager    = ServiceLocator::GetInstance().Get<MeshManagerService>();
-    auto& texture_manager = ServiceLocator::GetInstance().Get<TextureManagerService>();
+    [[maybe_unused]] auto& res_ldr         = ServiceLocator::GetInstance().Get<ResourceLoaderService>();
+    [[maybe_unused]] auto& mesh_manager    = ServiceLocator::GetInstance().Get<MeshManagerService>();
+    [[maybe_unused]] auto& texture_manager = ServiceLocator::GetInstance().Get<TextureManagerService>();
     auto& reg             = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene().registry;
 
     auto view = reg.view<Component::MeshAsset, Component::Transform>();
@@ -103,7 +151,7 @@ namespace glr
 
     for (auto [entity, mesh, transform] : view.each())
     {
-      if (not mesh_manager.IsMeshLoaded(mesh.mesh_tag))
+      if (not mesh_manager.IsModelLoaded(mesh.mesh_tag))
       {
         continue;
       }
@@ -111,14 +159,9 @@ namespace glr
       auto const mesh_views   = mesh_manager.GetMeshData(mesh.mesh_tag);
       auto const model_matrix = transform.GetMatrix();
 
-      for (auto i : range(0zu, mesh_views.size()))
+      for (auto i : InRangeOf(0zu, mesh_views.size()))
       {
-        auto albedo_handle = ::GLuint64{};
-        if (mesh.albedo_texture_tag.has_value())
-        {
-          albedo_handle = texture_manager.GetTexture2D(mesh.albedo_texture_tag.value()).GetBindlessHandle();
-        }
-        grouped[{mesh.mesh_tag, i}].push_back({model_matrix, albedo_handle});
+        grouped[{mesh.mesh_tag, i}].push_back({model_matrix});
       }
 
     }
@@ -130,21 +173,24 @@ namespace glr
 
     _indirect_buffer.Clear();
     _instance_buffer.Clear();
+    _draw_material_indices_buffer.Clear();
 
     for (auto const& [key, model_matrices] : grouped)
     {
       auto const  mesh_views = mesh_manager.GetMeshData(key.tag);
       auto const& submesh    = mesh_views[key.sub_idx];
 
-      auto const base_instance = static_cast<std::uint32_t>(_instance_buffer.Size());
+      _draw_material_indices_buffer.Append(submesh.material_index);
+
+      auto const base_instance = static_cast<u32>(_instance_buffer.Size());
       _instance_buffer.Append(model_matrices);
 
       auto cmd = DrawIndirectCommand
       {
         .count          = submesh.index_count,
-        .instance_count = static_cast<std::uint32_t>(model_matrices.size()),
+        .instance_count = static_cast<u32>(model_matrices.size()),
         .first_index    = submesh.index_offset,
-        .base_vertex    = static_cast<std::int32_t>(submesh.vertex_offset),
+        .base_vertex    = static_cast<i32>(submesh.vertex_offset),
         .base_instance  = base_instance
       };
 
@@ -152,15 +198,6 @@ namespace glr
     }
 
     UpdateCameraBuffer();
-
-    _vao.BuildSettings()
-      .BindAs<BufferType::ShaderStorage>(mesh_manager.GetVertexBuffer(), 0)
-      .BindAs<BufferType::ShaderStorage>(_camera_buffer, 1)
-      .BindAs<BufferType::ShaderStorage>(_instance_buffer, 2)
-      .BindAs<BufferType::Index>(mesh_manager.GetIndexBuffer())
-      .BindAs<BufferType::DrawIndirect>(_indirect_buffer)
-      .Apply()
-      .Activate();
 
     _gbuffer_pipeline.Activate();
 
