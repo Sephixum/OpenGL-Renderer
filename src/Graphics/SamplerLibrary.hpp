@@ -142,4 +142,17 @@ namespace glr::SamplerLibrary
     return s;
   }
 
+  inline const Sampler& FramebufferClamp() {
+    static const Sampler s(
+        SamplerCreateInfo{
+            .min_filter = SamplerMinFilterType::Linear,
+            .mag_filter = SamplerMagFilterType::Linear,
+            .wrap_s     = SamplerWrapModeType::ClampToEdge,
+            .wrap_t     = SamplerWrapModeType::ClampToEdge
+        },
+        "FramebufferClamp"
+    );
+    return s;
+}
+
 }

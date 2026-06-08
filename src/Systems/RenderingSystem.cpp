@@ -99,10 +99,6 @@ namespace glr
       }
       _material_buffer.Append(gpu);
     }
-
-    _vao.BuildSettings()
-      .BindAs<BufferType::ShaderStorage>(_material_buffer, 4)
-      .Apply();
   }
 
   auto RenderingSystem::UpdateCameraBuffer() -> void
@@ -206,6 +202,17 @@ namespace glr
     UpdateCameraBuffer();
 
     _gbuffer_pipeline.Activate();
+
+    _vao.BuildSettings()
+      .BindAs<BufferType::ShaderStorage>(mesh_manager.GetVertexBuffer(), 0)
+      .BindAs<BufferType::ShaderStorage>(_camera_buffer, 1)
+      .BindAs<BufferType::ShaderStorage>(_instance_buffer, 2)
+      .BindAs<BufferType::ShaderStorage>(_draw_material_indices_buffer, 3)
+      .BindAs<BufferType::ShaderStorage>(_material_buffer, 4)
+      .BindAs<BufferType::Index>(mesh_manager.GetIndexBuffer())
+      .BindAs<BufferType::DrawIndirect>(_indirect_buffer)
+      .Apply()
+      .Activate();
 
     ::glMultiDrawElementsIndirect(
         GL_TRIANGLES,

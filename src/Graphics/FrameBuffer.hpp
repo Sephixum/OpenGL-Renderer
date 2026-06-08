@@ -60,20 +60,26 @@ namespace glr
 
   class FrameBuffer : public IGLResource
   {
-    struct AttachmentInfo
+    struct ColorAttachmentInfo
     {
       TextureFormatType   format;
       FramebufferSlotType slot;
     };
 
+    struct ColorAttachment
+    {
+      Texture2D                texture;
+      ColorAttachmentInfo      info;
+    };
+
     EventSink _on_resize_event_sink = {};
 
 
-    u32                                          _width;
-    u32                                          _height;
-    std::array<std::optional<AttachmentInfo>, 8> _attachment_infos;
-    std::optional<Texture2D>                     _depth_texture;
-    bool                                         _use_depthstencil;
+    u32                                           _width;
+    u32                                           _height;
+    std::array<std::optional<ColorAttachment>, 8> _attachments;
+    std::optional<Texture2D>                      _depth_texture;
+    bool                                          _use_depthstencil;
 
     auto OnResize(Event::Resize const& e) -> void;
 
