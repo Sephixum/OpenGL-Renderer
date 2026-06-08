@@ -22,7 +22,7 @@ namespace glr
 
   auto InputManagerService::OnMouseMove(Event::MouseMove const& e) -> void 
   {
-    if (not _state.enabled) return;
+    if (not _state.mouse_enabled) return;
 
     if (_state.first_mouse) 
     {
@@ -44,7 +44,7 @@ namespace glr
 
   auto InputManagerService::OnMouseButton(Event::MouseButton const& e) -> void 
   {
-    if (not _state.enabled) return;
+    if (not _state.mouse_enabled) return;
 
     if ((e.button >= 0) and (e.button <= k_max_mouse_keys))
     {
@@ -54,13 +54,13 @@ namespace glr
 
   auto InputManagerService::OnMouseScroll(Event::MouseScroll const& e) -> void 
   {
-    if (not _state.enabled) return;
+    if (not _state.mouse_enabled) return;
     _state.scroll_delta += static_cast<float>(e.yoffset);
   }
 
   auto InputManagerService::OnKeyboardKey(Event::KeyBoardKey const& e) -> void 
   {
-    if (not _state.enabled) return;
+    if (not _state.keyboard_enabled) return;
 
     if (e.key >= 0 && e.key <= k_max_keyboard_keys)
     {
@@ -94,10 +94,10 @@ namespace glr
     return _state.keyboard_keys.test(key);
   }
 
-  auto InputManagerService::SetEnabled(bool enabled) -> void
+  auto InputManagerService::SetMouseEnabled(bool enabled) -> void
   {
-    _state.enabled = enabled;
-    if (not _state.enabled)
+    _state.mouse_enabled = enabled;
+    if (not _state.mouse_enabled)
     {
       _state.mouse_delta = glm::vec2(0.0f);
       _state.scroll_delta = 0.0f;
@@ -107,9 +107,19 @@ namespace glr
     }
   }
 
-  auto InputManagerService::IsEnabled() const -> bool
+  auto InputManagerService::SetKeyboardEnabled(bool enabled) -> void
   {
-    return _state.enabled;
+    _state.keyboard_enabled = enabled;
+  }
+
+  auto InputManagerService::IsMouseEnabled() const -> bool
+  {
+    return _state.mouse_enabled;
+  }
+
+  auto InputManagerService::IsKeyboardEnabled() const -> bool
+  {
+    return _state.keyboard_enabled;
   }
 
   auto InputManagerService::OnInit() -> void {}

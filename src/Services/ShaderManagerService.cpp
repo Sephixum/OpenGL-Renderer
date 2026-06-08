@@ -7,38 +7,30 @@ namespace glr
 
   namespace fs = std::filesystem;
 
-  auto ShaderManagerService::GetShaderPath(std::string const& name, std::string const& extension) const -> fs::path
+  auto ShaderManagerService::LoadShader(fs::path const& abs_path) -> void 
   {
-    return fs::current_path() / "assets" / "shaders" / name / (name + extension);
-  }
 
-  auto ShaderManagerService::LoadShader(std::string const& name) -> void 
-  {
-    auto vert_path = GetShaderPath(name, ".vert");
-    auto frag_path = GetShaderPath(name, ".frag");
-    auto comp_path = GetShaderPath(name, ".comp");
+    auto extension = abs_path.extension().string();
+    auto name      = abs_path.stem().string();
 
-    auto has_vert = fs::exists(vert_path);
-    auto has_frag = fs::exists(frag_path);
-    auto has_comp = fs::exists(comp_path);
+    log::Info("loading {}", abs_path.string());
 
-    Expect(has_vert or has_comp or has_frag, "There are no shaders in {}/", name);
-
-    if (has_comp)
+    if (extension == ".comp")
     {
-      _compute_shaders.emplace(name, ShaderProgram<ShaderStage::Compute>(comp_path, name + ".comp"));
+      _compute_shaders.insert_or_assign(name, ShaderProgram<ShaderStage::Compute>(abs_path, name + ".comp"));
     }
-
-    if (has_vert)
+    else if (extension == ".vert")
     {
-      _vertex_shaders.emplace(name, ShaderProgram<ShaderStage::Vertex>(vert_path, name + ".vert"));
+      _vertex_shaders.insert_or_assign(name, ShaderProgram<ShaderStage::Vertex>(abs_path, name + ".vert"));
     }
-
-    if (has_frag)
+    else if (extension == ".frag")
     {
-      _fragment_shaders.emplace(name, ShaderProgram<ShaderStage::Fragment>(frag_path, name + ".frag"));
+      _fragment_shaders.insert_or_assign(name, ShaderProgram<ShaderStage::Fragment>(abs_path, name + ".frag"));
     }
-
+    else
+    {
+      return;
+    }
   }
 
   auto ShaderManagerService::GetVertexShader(std::string const& name)   const -> ShaderProgram<ShaderStage::Vertex> const& 

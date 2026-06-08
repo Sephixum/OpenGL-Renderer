@@ -34,6 +34,16 @@ namespace glr
     return it->second;
   }
 
+  auto TextureManagerService::TeyGetTexture2D(std::string_view name) -> Texture2D*
+  {
+    auto it = _2d.find(std::string{name});
+    if (it == _2d.end())
+    {
+      return nullptr;
+    }
+    return &(it->second);
+  }
+
   auto TextureManagerService::IsTextureLoaded(std::string_view name) -> bool
   {
     return _2d.contains(std::string{name});

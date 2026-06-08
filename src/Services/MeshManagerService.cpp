@@ -15,7 +15,7 @@ namespace glr
 
   }
 
-  auto MeshManagerService::LoadModel(std::string_view name, std::span<MeshData const> meshes) -> void
+  auto MeshManagerService::LoadModelData(std::string_view name, std::span<MeshData const> meshes) -> void
   {
     auto views = std::vector<MeshView>{};
     views.reserve(meshes.size());
@@ -47,7 +47,7 @@ namespace glr
     return {it->second.data(), it->second.size()};
   }
 
-  auto MeshManagerService::IsMeshLoaded(std::string const& name) const -> bool
+  auto MeshManagerService::IsModelLoaded(std::string const& name) const -> bool
   {
     return _mesh_lookup.contains(name);
   }

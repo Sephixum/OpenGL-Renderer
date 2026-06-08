@@ -6,7 +6,7 @@
 #include <concepts>
 #include <memory>
 #include <typeindex>
-#include <map>
+#include <flat_map>
 
 namespace glr
 {
@@ -28,7 +28,7 @@ namespace glr
       auto TryGetSystem() -> T*;
 
     private:
-      std::map<std::type_index, std::unique_ptr<ISystem>> _systems;
+      std::flat_map<std::type_index, std::unique_ptr<ISystem>> _systems;
   };
 
 

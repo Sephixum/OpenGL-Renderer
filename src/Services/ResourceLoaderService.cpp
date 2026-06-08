@@ -1,4 +1,6 @@
 #include "ResourceLoaderService.hpp"
+#include "Graphics/MeshData.hpp"
+#include "Graphics/VertexData.hpp"
 #include "ServiceLocator.hpp"
 #include "MeshManagerService.hpp"
 #include "ShaderManagerService.hpp"
@@ -7,349 +9,378 @@
 #include "Graphics/Texture.hpp"
 #include "Graphics/SamplerLibrary.hpp"
 
-#include "Utils/Error.hpp"
-#include "Utils/Exception.hpp"
-#include "Utils/Log.hpp"
+
+#include "Utils/InRangeOf.hpp"
+#include "Utils/Utils.hpp"
 
 #include <algorithm>
 #include <assimp/material.h>
 #include <assimp/scene.h>
+#include <clocale>
 #include <assimp/types.h>
 #include <cctype>
 #include <filesystem>
+#include <string_view>
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <glm/ext/quaternion_geometric.hpp>
+#include <glm/ext/scalar_constants.hpp>
 #include <limits>
+#include <ranges>
 #include <set>
 #include <stb_image.h>
+#include <utility>
 
 namespace fs = std::filesystem;
 
-namespace
-{
-
-  [[nodiscard]] auto ResolveTexturePath(
-      fs::path const& model_file_path,
-      std::string const& texture_path
-  ) -> fs::path
-  {
-    fs::path tex_path = texture_path;
-    if (tex_path.is_absolute()) return tex_path;
-    return model_file_path.parent_path() / tex_path;
-  }
-
-}
-
 namespace glr
 {
-
-
+  
   auto ResourceLoaderService::OnInit() -> void
-  { 
-    {
-      auto& shader_service = ServiceLocator::GetInstance().Get<ShaderManagerService>();
-      auto  shaders_root   = fs::current_path() / "assets" / "shaders";
-      if (not fs::exists(shaders_root)) return;
-
-      for (auto const& entry : fs::directory_iterator(shaders_root))
-      {
-        if (not entry.is_directory()) continue;
-        auto shader_name = entry.path().filename().string();
-        shader_service.LoadShader(shader_name);
-      }
-    }
-
+  {
+    LoadAllAssetShaders();
     LoadAllAssetModels();
   }
 
-  auto ResourceLoaderService::OnUpdate() -> void 
+  auto ResourceLoaderService::LoadModel(fs::path const& abs_path) -> void
   {
-
+    if ((not fs::exists(abs_path)) or (not fs::is_regular_file(abs_path)))
+    {
+      log::Warn("Model file '{}' not found !", abs_path.string());
+      return;
+    }
+    auto const tag = abs_path.stem().string();
+    LoadModelFromFile(abs_path, tag);
   }
 
-  auto ResourceLoaderService::OnShutdown() -> void 
+  auto ResourceLoaderService::LoadModelTagged(fs::path const& abs_path, std::string const& name) -> void
   {
+    if ((not fs::exists(abs_path)) or (not fs::is_regular_file(abs_path)))
+    {
+      log::Warn("Model file '{}' not found !", abs_path.string());
+      return;
+    }
+    LoadModelFromFile(abs_path, name);
+  }
 
+  auto ResourceLoaderService::LoadTexture(fs::path const& abs_path) -> void
+  {
+    if ((not fs::exists(abs_path)) or (not fs::is_regular_file(abs_path)))
+    {
+      log::Warn("Texture file '{}' not found !", abs_path.string());
+      return;
+    }
+    auto tag = abs_path.stem().string();
+    LoadTextureFromFile(abs_path, tag);
+  }
+
+  auto ResourceLoaderService::LoadTextureTagged(fs::path const& abs_path, std::string const& name) -> void
+  {
+    if ((not fs::exists(abs_path)) or (not fs::is_regular_file(abs_path)))
+    {
+      log::Warn("Texture file '{}' not found !", abs_path.string());
+      return;
+    }
+    LoadTextureFromFile(abs_path, name);
   }
 
   auto ResourceLoaderService::LoadAllAssetModels() -> void
   {
+    using namespace std::literals;
     namespace rng = std::ranges;
     namespace vws = std::views;
-    static std::set<std::string> const extensions = {".gltf", ".obj", ".glb"};
-    static fs::path              const models_root  = fs::current_path() / "assets" / "models";
-    if (not fs::exists(models_root)) return;
 
-    auto is_model_file = [](const fs::directory_entry& entry) -> bool 
+    static auto const extensions = std::array
     {
-        if (!entry.is_regular_file()) return false;
-        std::string ext = entry.path().extension().string();
-        rng::transform(ext, ext.begin(), ::tolower);
-        return rng::find(extensions, ext) != extensions.end();
+      ".gltf"s
+      ".obj"s
+      ".glb"s
     };
 
-    auto entries = rng::subrange(fs::recursive_directory_iterator(models_root),
-                                 fs::recursive_directory_iterator{});
+    auto const models_root = fs::current_path() / "assets" / "models";
+    if (not fs::exists(models_root))
+    {
+      log::Warn("Models root not found -> {}", models_root.string());
+      return;
+    }
 
-    for ( auto const& entry : entries | vws::filter(is_model_file))
+    auto is_model_file = [](fs::directory_entry const& entry) static -> bool
+    {
+      if (not entry.is_regular_file()) return false;
+      auto ext = entry.path().filename().extension().string();
+      ext = ext | vws::transform([](unsigned char c){return std::tolower(c);}) | rng::to<std::string>();
+      return ext == ".gltf" or ext == ".glb" or ext == ".obj";
+    };
+
+    auto entries = rng::subrange(fs::recursive_directory_iterator{models_root}, {});
+
+    for (auto const& entry : entries | vws::filter(is_model_file))
     {
       LoadModel(entry.path());
     }
-
   }
 
-  auto ResourceLoaderService::LoadModelTextures(
-        std::filesystem::path const& model_file_path,
-        aiScene               const* scene
-    ) -> void
+  auto ResourceLoaderService::LoadModelFromFile(fs::path const& abs_path, std::string const& name) -> void
   {
-    static constexpr auto range = std::views::iota;
-    static constexpr std::array texture_types = {
-      std::pair{ aiTextureType_DIFFUSE,           "albedo"   },
-      // std::pair{ aiTextureType_NORMALS,           "normal"   },
-      // std::pair{ aiTextureType_SPECULAR,          "specular" },
-      // std::pair{ aiTextureType_DIFFUSE_ROUGHNESS, "roughness" },
-      // std::pair{ aiTextureType_METALNESS,         "metallic"  },
-    };
-    
-    for (auto i : range(0zu, scene->mNumMaterials))
-    {
-      aiMaterial* material = scene->mMaterials[i];
-      for (auto [type, slot] : texture_types)
-      {
-        auto path = aiString{};
-        if (material->GetTexture(type, 0, &path) == aiReturn_SUCCESS)
-        {
-          auto absolute_path = ResolveTexturePath(model_file_path, path.C_Str());
-          LoadTextureCustomTag(absolute_path, std::format("{}_{}", model_file_path.stem().string(), slot));
-        }
-      }
-    }
-  }
+    using namespace std::literals;
 
-  auto ResourceLoaderService::LoadModel(fs::path const& absolute_path_dir) -> void
-  {
-    if ((not fs::exists(absolute_path_dir)) or (not fs::is_regular_file(absolute_path_dir)))
+    auto& mesh_mgr = ServiceLocator::GetInstance().Get<MeshManagerService>();
+    if (mesh_mgr.IsModelLoaded(name))
     {
-      log::Warn("Texture file not found : {}", absolute_path_dir.string());
+      log::Warn("Model with name {} already loaded !", name);
       return;
     }
 
-    auto tag = absolute_path_dir.stem().string();
-    LoadModelFromFile(absolute_path_dir, tag);
-  }
-
-  auto ResourceLoaderService::LoadModelFromFile(std::filesystem::path const& path, std::string const& name) -> void
-  {
-    static constexpr auto range = std::views::iota;
-    auto& mesh_manager = ServiceLocator::GetInstance().Get<MeshManagerService>();
-    if (mesh_manager.IsMeshLoaded(name)) return;
-
-    fs::path model_dir = fs::current_path() / "assets" / "models" / name;
-
-    static constexpr auto const flags = 
-                aiProcess_Triangulate           |
-                aiProcess_GenNormals            |
-                aiProcess_JoinIdenticalVertices |
-                aiProcess_GenUVCoords           |
-                aiProcess_FlipUVs;   // glTF UV orientation fix
+    static constexpr auto k_assimp_flags =
+        aiProcess_Triangulate |
+        aiProcess_GenNormals |
+        aiProcess_JoinIdenticalVertices |
+        aiProcess_GenUVCoords |
+        aiProcess_FlipUVs;
 
     auto        importer = Assimp::Importer{};
-    auto const* scene    = importer.ReadFile(path.string(), flags);
+    auto const* scene    = importer.ReadFile(abs_path.string(), k_assimp_flags);
     if ((not scene) or (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) or (not scene->mRootNode))
     {
-      throw Exception{"Assimp error -> {}", std::string(importer.GetErrorString())};
+      throw Exception{"Assimp error -> {}", std::string{importer.GetErrorString()}};
     }
 
-    LoadModelTextures(path, scene);
-    
-    auto local_min = glm::vec3(std::numeric_limits<float>::max());
-    auto local_max = glm::vec3(-std::numeric_limits<float>::max());
-    for (auto m : range(0zu, scene->mNumMeshes))
+
+    auto const material_base_index = static_cast<u32>(_global_materials.size());
+
+    for (auto i : InRangeOf(0zu, scene->mNumMaterials))
     {
-      auto const* mesh = scene->mMeshes[m];
-      for (auto v : range(0zu, mesh->mNumVertices))
+      auto* ai_mat = scene->mMaterials[i];
+      auto  gm     = GlobalMaterial{};
+      enum struct TextureTypeValue { Albedo, Normal, Roughness, Metalic };
+      static constexpr std::array k_texture_type_map = 
       {
-        auto vert = mesh->mVertices[v];
-        local_min = glm::min(local_min, glm::vec3(vert.x, vert.y, vert.z));
-        local_max = glm::max(local_max, glm::vec3(vert.x, vert.y, vert.z));
+        std::pair{ aiTextureType_DIFFUSE,           TextureTypeValue::Albedo    },
+        std::pair{ aiTextureType_NORMALS,           TextureTypeValue::Normal    },
+        std::pair{ aiTextureType_DIFFUSE_ROUGHNESS, TextureTypeValue::Roughness },
+        std::pair{ aiTextureType_METALNESS,         TextureTypeValue::Metalic   },
+      };
+
+      for (auto [type, slot] : k_texture_type_map)
+      {
+        auto ai_tex_path = aiString{};
+        if (ai_mat->GetTexture(type, 0, &ai_tex_path) == aiReturn_SUCCESS and ai_tex_path.length > 0)
+        {
+          auto tex_abs_path = abs_path.parent_path() / ai_tex_path.C_Str();
+          auto tag          = std::format("{}_{}", name, tex_abs_path.filename().string());
+          LoadTextureTagged(tex_abs_path, tag);
+          switch (slot) 
+          {
+            using enum TextureTypeValue;
+            case Albedo    : gm.albedo_tag    = tag; break;
+            case Normal    : gm.normal_tag    = tag; break;
+            case Roughness : gm.roughness_tag = tag; break;
+            case Metalic   : gm.metalic_tag   = tag; break;
+            default : std::unreachable();
+          }
+        }
       }
+
+      if (gm.albedo_tag.empty())
+      {
+        auto ai_bc_path = aiString{};
+        if (ai_mat->GetTexture(aiTextureType_BASE_COLOR, 0, &ai_bc_path) == aiReturn_SUCCESS and ai_bc_path.length > 0)
+        {
+          auto tex_abs_path = abs_path.parent_path() / ai_bc_path.C_Str();
+          auto tag          = std::format("{}_{}", name, tex_abs_path.filename().string());
+          LoadTextureTagged(tex_abs_path, tag);
+        }
+      }
+
+      _global_materials.push_back(std::move(gm));
     }
 
-    glm::vec3       size        = local_max - local_min;
-    float           max_extent  = glm::max(size.x, glm::max(size.y, size.z));
-    float           scale       = 1.0f;
-    constexpr auto  k_target_size = 3.0f;
 
-    if (max_extent > 0.0f)
+
+    f32 const scale = [&]
     {
-      scale = k_target_size / max_extent;
-    }
+      auto local_min = glm::vec3( std::numeric_limits<f32>::max());
+      auto local_max = glm::vec3(-std::numeric_limits<f32>::max());
 
-    auto process_mesh_fn = [&scale](const aiMesh* mesh) -> MeshData 
+      // Adjust local min max accordingly
+      for (auto i : InRangeOf(0zu, scene->mNumMeshes))
+      {
+        auto const* mesh = scene->mMeshes[i];
+        for (auto j : InRangeOf(0zu, mesh->mNumVertices))
+        {
+          auto& v = mesh->mVertices[j];
+          local_min = glm::min(local_min, glm::vec3(v.x, v.y, v.z));
+          local_max = glm::max(local_max, glm::vec3(v.x, v.y, v.z));
+        }
+      }
+
+      glm::vec3 size       = local_max - local_min;
+      auto      max_extent = glm::max(size.x, glm::max(size.y, size.z));
+      static constexpr auto k_target_size = 3.0f;
+      if (max_extent > 0.0f)
+      {
+        return k_target_size / max_extent;
+      }
+
+      return 1.0f;
+    }();
+
+    auto process_mesh = [&](aiMesh const* mesh, u32 global_mat_index) -> MeshData
     {
-      static constexpr auto range = std::views::iota;
+      auto md = MeshData{};
+      md.material_index = global_mat_index;
 
-      auto mesh_data           = MeshData{};
-      mesh_data.material_index = mesh->mMaterialIndex;
-
-      mesh_data.vertices.reserve(mesh->mNumVertices);
-      for (auto i : range(0zu, mesh->mNumVertices)) {
+      md.vertices.reserve(mesh->mNumVertices);
+      for (auto i : InRangeOf(0zu, mesh->mNumVertices))
+      { 
         auto v = VertexData{};
-        
         if (mesh->HasPositions())
         {
-          v.position = glm::vec3(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z) * scale;
+          v.position = (glm::vec3(mesh->mVertices[i].x,
+                                  mesh->mVertices[i].y,
+                                  mesh->mVertices[i].z) * scale);
         }
         if (mesh->HasNormals())
         {
-          v.normal = glm::normalize(glm::vec3(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z));
+          v.normal = (glm::vec3(mesh->mNormals[i].x,
+                                mesh->mNormals[i].y,
+                                mesh->mNormals[i].z));
         }
-        if (mesh->mTextureCoords[0])
+        if (mesh->HasTextureCoords(0))
         {
-          v.uv = glm::vec2(mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y);
+          v.uv = glm::vec2(mesh->mTextureCoords[0][i].x,
+                           mesh->mTextureCoords[0][i].y);
         }
-
-        mesh_data.vertices.push_back(v);
+        md.vertices.push_back(v);
       }
 
-      mesh_data.indices.reserve(mesh->mNumFaces * 3);
-      for (auto i : range(0zu, mesh->mNumFaces))
+      md.indices.reserve(mesh->mNumFaces * 3);
+      for (auto i : InRangeOf(0zu, mesh->mNumFaces))
       {
-        aiFace const& face = mesh->mFaces[i];
-        for (auto j : range(0zu, face.mNumIndices))
+        auto const& ai_face = mesh->mFaces[i];
+        for (auto j : InRangeOf(0zu, ai_face.mNumIndices))
         {
-          mesh_data.indices.push_back(face.mIndices[j]);
+          md.indices.push_back(ai_face.mIndices[j]);
         }
       }
 
-      return mesh_data;
+      return md;
     };
 
-    
-    auto process_node_fn = [&](this auto&& self, aiNode* node) -> std::vector<MeshData>
+    auto all_meshes   = std::vector<MeshData>{};
+    auto process_node = [&](this auto&& self, aiNode* node) -> void
     {
-      static constexpr auto range = std::views::iota;
-      auto meshes = std::vector<MeshData>{};
-
-      for (auto i : range(0zu, node->mNumMeshes)) 
+      for (auto i : InRangeOf(0zu, node->mNumMeshes))
       {
-        auto* mesh = scene->mMeshes[node->mMeshes[i]];
-        meshes.push_back(process_mesh_fn(mesh));
+        u32         mesh_index       = node->mMeshes[i];
+        auto const* ai_mesh          = scene->mMeshes[mesh_index];
+        u32         global_mat_index = material_base_index + ai_mesh->mMaterialIndex;
+        all_meshes.push_back(process_mesh(ai_mesh, global_mat_index));
       }
 
-      for (auto i : range(0zu, node->mNumChildren)) 
+      for (auto i : InRangeOf(0zu, node->mNumChildren))
       {
-        auto child_meshes = self(node->mChildren[i]);
-        meshes.insert_range(meshes.end(), child_meshes);
+        self(node->mChildren[i]);
       }
-
-      return meshes;
     };
 
-    std::vector<MeshData> all_meshes = process_node_fn(scene->mRootNode);
-    mesh_manager.LoadModel(name, all_meshes);
+    process_node(scene->mRootNode);
+
+    mesh_mgr.LoadModelData(name, all_meshes);
   }
 
-
-  auto ResourceLoaderService::LoadTexture(fs::path const& absolute_path_dir) -> void
-  {
-    if ((not fs::exists(absolute_path_dir)) or (not fs::is_regular_file(absolute_path_dir)))
-    {
-      log::Warn("Model file not found : {}", absolute_path_dir.string());
-      return;
-    }
-
-    auto name = absolute_path_dir.stem().string();
-    LoadTextureFromFile(absolute_path_dir, name);
-  }
-
-  auto ResourceLoaderService::LoadTextureFromFile(fs::path const& path, std::string const& name) -> void
+  auto ResourceLoaderService::LoadTextureFromFile(fs::path const& abs_path, std::string const& tag) -> void
   {
     namespace rng = std::ranges;
+    namespace vws = std::views;
 
-    auto& texture_manager = ServiceLocator::GetInstance().Get<TextureManagerService>();
-    if (texture_manager.IsTextureLoaded(name))
+    auto& tex_mgr = ServiceLocator::GetInstance().Get<TextureManagerService>();
+    if (tex_mgr.IsTextureLoaded(tag))
     {
+      log::Warn("Texture file '{}' already loaded !", abs_path.string());
       return;
     }
 
-    log::Info("Loading texture: {}", path.string());
-                                                      
-    auto const ext = [&]{
-      auto e = path.extension().string();
-      rng::transform(e, e.begin(), ::tolower);
-      return e;
-    }();
-
-    if (ext == ".hdr" or ext == ".exr")
+    auto extension = abs_path.extension().string();
+    extension = extension | vws::transform(::tolower) | rng::to<std::string>();
+    if ((extension == ".hdr") or (extension == ".exr"))
     {
-      throw Exception{"Loading Texture {} is not implemented.", name};
+      log::Warn("Texture {} of type '{}' not supported !", abs_path.string(), extension);
+      return;
     }
-    else
+
+    auto width  = 0;
+    auto height = 0;
+
+    auto* pixels_data = stbi_load(abs_path.string().c_str(), &width, &height, nullptr, 4);
+    if (not pixels_data)
     {
-      auto width  = 0;
-      auto height = 0;
-      auto comp   = 0;
-
-      auto* pixels_data = stbi_load(path.string().c_str(), &width, &height, &comp, 4);
-      Expect(pixels_data != nullptr, "Failed to load 2D Texture reason -> {}", stbi_failure_reason());
-
-      auto info = Texture2DCreateInfo{
-        .width   = static_cast<std::uint32_t>(width),
-        .height  = static_cast<std::uint32_t>(height),
-        .format  = TextureFormat::Rgba8unorm,
-        .sampler = SamplerLibrary::ModelMipmapAniso16x(),
-        .data    = std::vector<std::byte>(reinterpret_cast<std::byte*>(pixels_data), reinterpret_cast<std::byte*>(pixels_data) + width * height * 4),
-      };
-
-      stbi_image_free(pixels_data);
-      texture_manager.AddTexture2D(info, name);
+      log::Warn("Texture {} could not be loaded by stb_image: \n\t{}", abs_path.string(), stbi_failure_reason());
+      return;
     }
+
+    auto info = Texture2DCreateInfo
+    {
+      .width   = static_cast<u32>(width),
+      .height  = static_cast<u32>(height),
+      .format  = TextureFormat::Rgba8unorm,
+      .sampler = SamplerLibrary::ModelMipmapAniso16x(),
+      .data    = std::vector<std::byte>{reinterpret_cast<std::byte*>(pixels_data),
+                                        reinterpret_cast<std::byte*>(pixels_data) + width * height * 4},
+      .mipmap_levels = 10
+    };
+
+    stbi_image_free(pixels_data);
+    tex_mgr.AddTexture2D(info, tag);
   }
 
-  auto ResourceLoaderService::LoadTextureCustomTag(fs::path const& absolute_path_dir, std::string const& tag) -> void
+  auto ResourceLoaderService::LoadAllAssetShaders() -> void
   {
+    using namespace std::literals;
     namespace rng = std::ranges;
+    namespace vws = std::views;
 
-    auto& texture_manager = ServiceLocator::GetInstance().Get<TextureManagerService>();
-    if (texture_manager.IsTextureLoaded(tag))
+    auto&      shader_mgr   = ServiceLocator::GetInstance().Get<ShaderManagerService>();
+    auto const shaders_root = fs::current_path() / "assets" / "shaders";
+    log::Info("shaders root :{}", shaders_root.string());
+
+    if (not fs::exists(shaders_root)) 
     {
-      return;
+      throw Exception{"Shaders root not found: {}", shaders_root.string()};
     }
 
-    log::Info("Loading texture: {}", absolute_path_dir.string());
-                                                      
-    auto const ext = [&]{
-      auto e = absolute_path_dir.extension().string();
-      rng::transform(e, e.begin(), ::tolower);
-      return e;
-    }();
-
-    if (ext == ".hdr" or ext == ".exr")
+    auto is_shader_file = [](fs::directory_entry const& entry) static -> bool
     {
-      throw Exception{"Loading Texture {} is not implemented.", tag};
-    }
-    else
+      if (not entry.is_regular_file()) return false;
+      auto ext = entry.path().filename().extension().string();
+      ext = ext | vws::transform([](unsigned char c){return std::tolower(c);}) | rng::to<std::string>();
+      return ext == ".vert" or ext == ".frag" or ext == ".comp";
+    };
+
+    auto entries = rng::subrange(fs::recursive_directory_iterator{shaders_root}, {});
+
+
+    for (auto const& entry : entries | vws::filter(is_shader_file))
     {
-      auto width  = 0;
-      auto height = 0;
-      auto* pixels_data = stbi_load(absolute_path_dir.string().c_str(), &width, &height, nullptr, 4);
-      Expect(pixels_data != nullptr, "Failed to load 2D Texture reason -> {}", stbi_failure_reason());
-
-      auto info = Texture2DCreateInfo{
-        .width   = static_cast<std::uint32_t>(width),
-        .height  = static_cast<std::uint32_t>(height),
-        .format  = TextureFormat::Rgba8unorm,
-        .sampler = SamplerLibrary::ModelMipmapRepeat(),
-        .data    = std::vector<std::byte>(reinterpret_cast<std::byte*>(pixels_data), reinterpret_cast<std::byte*>(pixels_data) + width * height * 4),
-        .mipmap_levels = 1
-      };
-
-      stbi_image_free(pixels_data);
-      texture_manager.AddTexture2D(info, tag);
+      shader_mgr.LoadShader(entry.path());
     }
   }
+
+  auto ResourceLoaderService::LoadShader(fs::path const& abs_path) -> void
+  {
+    (void)abs_path;
+  }
+
+  auto ResourceLoaderService::LoadShaderTagged(fs::path const& abs_path, std::string const& name) -> void
+  {
+    (void)abs_path;
+    (void)name;
+  }
+
+  auto ResourceLoaderService::GetGlobalMaterial() -> std::span<GlobalMaterial>
+  {
+    return _global_materials;
+  }
+
 
 }

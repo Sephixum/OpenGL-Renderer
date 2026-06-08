@@ -37,7 +37,8 @@ namespace glr
       std::bitset<k_max_keyboard_keys + 1> keyboard_keys = {};
       std::bitset<k_max_mouse_keys + 1>    mouse_keys    = {};
 
-      bool enabled = true;
+      bool mouse_enabled    = true;
+      bool keyboard_enabled = true;
     }
     _state = {};
 
@@ -53,8 +54,10 @@ namespace glr
       [[nodiscard]] auto IsMouseButtonDown(int button) const -> bool;
       [[nodiscard]] auto IsKeyBoardKeyDown(int key)    const -> bool;
 
-      auto SetEnabled(bool enabled)        -> void;
-      [[nodiscard]] auto IsEnabled() const -> bool;
+      auto SetMouseEnabled(bool enabled)        -> void;
+      auto SetKeyboardEnabled(bool enabled)        -> void;
+      [[nodiscard]] auto IsMouseEnabled() const -> bool;
+      [[nodiscard]] auto IsKeyboardEnabled() const -> bool;
   };
 
 }

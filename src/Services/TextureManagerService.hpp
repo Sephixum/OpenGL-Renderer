@@ -17,7 +17,8 @@ namespace glr
 
       auto AddTexture2D(Texture2DCreateInfo const& info, std::string_view name) -> void;
 
-      [[nodiscard]] auto GetTexture2D(std::string_view name)    -> Texture2D&;
+      [[nodiscard]] auto GetTexture2D(std::string_view name)       -> Texture2D&;
+      [[nodiscard]] auto TeyGetTexture2D(std::string_view name)    -> Texture2D*;
       [[nodiscard]] auto IsTextureLoaded(std::string_view name) -> bool;
       [[nodiscard]] auto GetAllTags() -> std::vector<std::string>
       {

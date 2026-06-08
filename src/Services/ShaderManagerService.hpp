@@ -21,7 +21,7 @@ namespace glr
       virtual auto OnUpdate()   -> void override;
       virtual auto OnShutdown() -> void override;
       
-      auto LoadShader(std::string const& name) -> void;
+      auto LoadShader(std::filesystem::path const& abs_path) -> void;
 
       [[nodiscard]] auto GetVertexShader(std::string const& name)   const -> ShaderProgram<ShaderStage::Vertex> const&;
       [[nodiscard]] auto GetFragmentShader(std::string const& name) const -> ShaderProgram<ShaderStage::Fragment> const&;
