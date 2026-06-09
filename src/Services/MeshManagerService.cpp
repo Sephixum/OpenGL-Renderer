@@ -1,5 +1,6 @@
 #include "MeshManagerService.hpp"
 #include "Graphics/Model.hpp"
+#include "Graphics/Primitive.hpp"
 #include "Utils/Error.hpp"
 #include "Utils/Log.hpp"
 #include <print>
@@ -15,6 +16,13 @@ namespace glr
     , _model_lookup{}
   {
 
+  }
+
+  auto MeshManagerService::OnInit() -> void
+  {
+    LoadModelData("Cube", Primitive::Cube());
+    LoadModelData("Sphere", Primitive::Sphere());
+    LoadModelData("Cylinder", Primitive::Cylinder());
   }
 
   auto MeshManagerService::LoadModelData(std::string_view name, ModelData const& model) -> void

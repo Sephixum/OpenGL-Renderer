@@ -53,7 +53,7 @@ namespace glr::Component
         data = perspective;
     }
 
-    auto setProjection(OrthographicData const& ortho) -> void
+    auto SetProjection(OrthographicData const& ortho) -> void
     {
         data = ortho;
     }

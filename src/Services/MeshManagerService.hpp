@@ -19,7 +19,7 @@ namespace glr
     public:
       MeshManagerService();
 
-      virtual auto OnInit()     -> void override {}
+      virtual auto OnInit()     -> void override;
       virtual auto OnUpdate()   -> void override {}
       virtual auto OnShutdown() -> void override {}
 

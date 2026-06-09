@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Components/include/ProjectionComponent.hpp"
 #include <utility>
 
 namespace glr::Component
@@ -14,7 +15,9 @@ namespace glr::Component
       Orbital,
       Fly
     } 
-    mode = CameraMode::Fly;
+    mode                  = CameraMode::Fly;
+    bool       primary    = false;
+    Projection projection = {};
   };
 
   struct ActiveCamera
