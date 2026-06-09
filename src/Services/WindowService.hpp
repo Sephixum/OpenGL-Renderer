@@ -29,8 +29,8 @@ namespace glr
 
       [[nodiscard]] auto GetHandle() -> ::GLFWwindow* { return _handle; }
 
-      [[nodiscard]] auto GetWindowWidth()  const -> u32;
-      [[nodiscard]] auto GetWindowHeight() const -> u32;
+      [[nodiscard]] auto GetWidth()  const -> u32;
+      [[nodiscard]] auto GetHeight() const -> u32;
   };
 
 }

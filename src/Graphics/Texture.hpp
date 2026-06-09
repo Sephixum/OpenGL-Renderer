@@ -1,7 +1,7 @@
 #pragma once
 
 #include "IGLResource.hpp"
-#include "Utils/UniqueHandle.hpp"
+#include "Utils/Utils.hpp"
 
 #include <glad.h>
 
@@ -70,17 +70,20 @@ namespace glr
     UniqueHandle<::GLuint64> _bindless_handle;
     std::uint32_t            _width;
     std::uint32_t            _height;
+    Sampler const&           _sampler;
+    TextureFormatType        _format;
     std::string              _name;
 
     public:
       Texture(Texture2DCreateInfo const& info, std::string_view name = "Unknown Texture");
-      Texture(Texture&&) noexcept = default;
-      Texture& operator=(Texture&&) noexcept = default;
+
       [[nodiscard]] auto GetBindlessHandle() const -> ::GLuint64 { return _bindless_handle; }
 
       [[nodiscard]] auto GetWidth()  const -> std::uint32_t    { return _width; }
       [[nodiscard]] auto GetHeight() const -> std::uint32_t    { return _height; }
       [[nodiscard]] auto GetName()   const -> std::string_view { return _name; }
+
+      auto Resize(u32 width, u32 height) -> void;
   };
   using Texture2D = Texture<TextureType::Texture2D>;
 

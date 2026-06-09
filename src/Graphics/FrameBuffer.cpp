@@ -6,6 +6,7 @@
 #include "Utils/InRangeOf.hpp"
 
 #include <algorithm>
+#include <numeric>
 #include <ranges>
 #include <utility>
 
@@ -55,67 +56,75 @@ namespace glr
 {
 
   FrameBuffer::FrameBuffer(FramebufferCreateInfo const& info, std::string_view name)
-    : _width{info.width}
-    , _height{info.height}
-    , _use_depthstencil{info.use_depthstencil}
-    , _name{name}
+    : _width  { info.width  }
+    , _height { info.height }
+    , _name   { name        }
   {
     _id = {0u, [](auto e){ ::glDeleteFramebuffers(1, &e);}};
     ::glCreateFramebuffers(1, &_id);
     ::glObjectLabel(GL_FRAMEBUFFER, _id, name.length(), name.data());
 
+    // Build color attachments
     auto color_count = u64{};
-    for (auto const [idx, att] : info.color_attachments | vws::enumerate)
+
+    for (auto const& att : info.color_attachments)
     {
       if (not att.has_value()) continue;
 
-      auto const& att_value = att.value();
-      auto w = att_value.width  ? att_value.width  : info.width;
-      auto h = att_value.height ? att_value.height : info.height;
+      auto const& src = att.value();
+      auto const  w   = src.width  ? src.width  : info.width;
+      auto const  h   = src.height ? src.height : info.height;
 
-      auto texture_create_info = Texture2DCreateInfo{
-        .width         = w,
-        .height        = h,
-        .format        = att_value.format,
-        .sampler       = SamplerLibrary::FramebufferClamp(),
-        .data          = std::nullopt,
-        .mipmap_levels = 1
-      };
-
-      auto tex = Texture2D(texture_create_info, std::format("{}_ColorAttachment_{}", name, to_string(att_value.slot)));
-      ::glNamedFramebufferTexture(_id, GL_COLOR_ATTACHMENT0 + color_count, tex.GetID(), 0);
-
-      _attachments[color_count].emplace(
-          std::move(tex),
-          ColorAttachmentInfo{.format = att_value.format, .slot = att_value.slot}
+      auto texture = Texture2D(
+        Texture2DCreateInfo{
+          .width         = w,
+          .height        = h,
+          .format        = src.format,
+          .sampler       = SamplerLibrary::FramebufferClamp(),
+          .data          = std::nullopt,
+          .mipmap_levels = 1
+        },
+        std::format("{}_ColorAttachment_{}", name, to_string(src.slot))
       );
+
+      ::glNamedFramebufferTexture(_id, GL_COLOR_ATTACHMENT0 + color_count, texture.GetID(), 0);
+      _attachments[color_count].emplace(ColorAttachment{
+        .texture = std::move(texture),
+        .info    = { .format = src.format, .slot = src.slot, .width = src.width, .height = src.height }
+      });
 
       ++color_count;
     }
 
-    if (_use_depthstencil)
+    // Build depth/stencil attachment
+    if (info.use_depthstencil)
     {
-      auto tex_stencil_info = Texture2DCreateInfo{
-        .width         = info.width,
-        .height        = info.height,
-        .format        = TextureFormatType::Depth24stencil8,
-        .sampler       = SamplerLibrary::ShadowMapDepth(),
-        .data          = std::nullopt,
-        .mipmap_levels = 1
-      };
+      auto depth = Texture2D(
+        Texture2DCreateInfo{
+          .width         = info.width,
+          .height        = info.height,
+          .format        = TextureFormatType::Depth24stencil8,
+          .sampler       = SamplerLibrary::ShadowMapDepth(),
+          .data          = std::nullopt,
+          .mipmap_levels = 1
+        },
+        std::format("{}_DepthStencil", name)
+      );
 
-      auto depth_texture = Texture2D{tex_stencil_info, std::format("{}_DepthStencil", name)};
-      ::glNamedFramebufferTexture(_id, GL_DEPTH_STENCIL_ATTACHMENT, depth_texture.GetID(), 0);
-      _depth_texture.emplace(std::move(depth_texture));
+      ::glNamedFramebufferTexture(_id, GL_DEPTH_STENCIL_ATTACHMENT, depth.GetID(), 0);
+      _depth_texture.emplace(std::move(depth));
     }
 
-    auto draw_buffers = std::vector<::GLenum>{};
-    for (auto i : InRangeOf(0zu, color_count))
-    {
-      draw_buffers.push_back(GL_COLOR_ATTACHMENT0 + i);
-    }
-    ::glNamedFramebufferDrawBuffers(_id, draw_buffers.size(), draw_buffers.data());
-    Expect((::glCheckNamedFramebufferStatus(_id, GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE), "FrameBuffer {} is incomplete !", name);
+    // Specify draw buffers
+    auto draw_buffers = std::vector<::GLenum>(color_count);
+    std::iota(draw_buffers.begin(), draw_buffers.end(), GL_COLOR_ATTACHMENT0);
+    ::glNamedFramebufferDrawBuffers(_id, static_cast<GLsizei>(draw_buffers.size()), draw_buffers.data());
+
+    Expect(
+      ::glCheckNamedFramebufferStatus(_id, GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
+      "FrameBuffer {} is incomplete!", name
+    );
+
     _on_resize_event_sink = Application::GetInstance().GetEventBus().sink<Event::Resize>().connect<&FrameBuffer::OnResize>(this);
   }
 
@@ -168,69 +177,40 @@ namespace glr
 
   auto FrameBuffer::OnResize(Event::Resize const& e) -> void
   {
-    if (static_cast<u32>(e.width) == _width and static_cast<u32>(e.height) == _height) return;
+    auto const new_width  = static_cast<u32>(e.width);
+    auto const new_height = static_cast<u32>(e.height);
 
-    auto old_attachments = std::move(_attachments);
-    auto had_depth       = _depth_texture.has_value();
+    if (new_width == _width and new_height == _height) return;
 
-    _depth_texture.reset();
+    ::glFinish();
 
-    _width  = e.width;
-    _height = e.height;
-
-    {
-      auto new_fbo = ::GLuint{};
-      ::glCreateFramebuffers(1, &new_fbo);
-      _id.Reset(new_fbo);
-    }
+    _width  = new_width;
+    _height = new_height;
 
     auto color_count = u64{};
-    for (auto [idx, att] : old_attachments | vws::enumerate)
+    for (auto& att : _attachments)
     {
       if (not att.has_value()) continue;
 
-      auto const& old = att.value();
-      auto tex_info = Texture2DCreateInfo{
-        .width   = _width,
-        .height  = _height,
-        .format  = old.info.format,
-        .sampler = SamplerLibrary::FramebufferClamp(),
-        .data    = std::nullopt,
-        .mipmap_levels = 1
-      };
+      auto const w = att->info.width  ? att->info.width  : _width;
+      auto const h = att->info.height ? att->info.height : _height;
 
-      auto new_texture = Texture2D(tex_info, std::format("{}_ColorAttachment_{}", _name, to_string(old.info.slot)));
-      ::glNamedFramebufferTexture(_id, GL_COLOR_ATTACHMENT0 + color_count, new_texture.GetID(), 0);
-      _attachments[color_count].emplace(ColorAttachment{
-          .texture = std::move(new_texture),
-          .info    = old.info
-      });
+      att->texture.Resize(w, h);
+      ::glNamedFramebufferTexture(_id, GL_COLOR_ATTACHMENT0 + color_count, att->texture.GetID(), 0);
 
       ++color_count;
     }
 
-    if (had_depth)
+    if (_depth_texture.has_value())
     {
-      auto depth_create_info = Texture2DCreateInfo{
-        .width         = _width,
-        .height        = _height,
-        .format        = TextureFormatType::Depth24stencil8,
-        .sampler       = SamplerLibrary::ShadowMapDepth(),
-        .data          = std::nullopt,
-        .mipmap_levels = 1
-      };
-      auto new_depth_stencil = Texture2D(depth_create_info, std::format("{}_DepthStencil", _name));
-      ::glNamedFramebufferTexture(_id, GL_DEPTH_STENCIL_ATTACHMENT, new_depth_stencil.GetID(), 0);
-      _depth_texture.emplace(std::move(new_depth_stencil));
+      _depth_texture->Resize(_width, _height);
+      ::glNamedFramebufferTexture(_id, GL_DEPTH_STENCIL_ATTACHMENT, _depth_texture->GetID(), 0);
     }
 
-    auto draw_buffers = std::vector<::GLenum>{};
-    for (auto i : InRangeOf(0zu, color_count))
-    {
-      draw_buffers.push_back(GL_COLOR_ATTACHMENT0 + i);
-    }
-    ::glNamedFramebufferDrawBuffers(_id, draw_buffers.size(), draw_buffers.data());
-    Expect((::glCheckNamedFramebufferStatus(_id, GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE), "FrameBuffer {} is incomplete !", _name);
+    Expect(
+      ::glCheckNamedFramebufferStatus(_id, GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
+      "FrameBuffer {} incomplete after resize!", _name
+    );
   }
-
+  
 }

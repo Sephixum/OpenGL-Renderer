@@ -7,6 +7,7 @@
 
 #include "Graphics/Buffer.hpp"
 #include "Graphics/GraphicsPipeline.hpp"
+#include "Graphics/IGLResource.hpp"
 #include "Graphics/VertexArray.hpp"
 
 #include "Services/MeshManagerService.hpp"

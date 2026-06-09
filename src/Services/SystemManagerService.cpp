@@ -18,7 +18,7 @@ namespace glr
 
   auto SystemManagerService::OnShutdown() -> void
   {
-
+    _systems.clear();
   }
 
 }

@@ -5,6 +5,7 @@
 #include "Core/Application.hpp"
 #include "Core/Event.hpp"
 #include "Graphics/FrameBuffer.hpp"
+#include "Graphics/IGLResource.hpp"
 #include "Graphics/Texture.hpp"
 #include "Graphics/VertexArray.hpp"
 #include "Graphics/GraphicsPipeline.hpp"
@@ -20,7 +21,6 @@
 
 #include "Utils/InRangeOf.hpp"
 
-#include <cstdint>
 #include <functional>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/matrix.hpp>
@@ -32,11 +32,11 @@
 namespace
 {
 
-  [[nodiscard]] auto CreateGBufferInfo() -> glr::FramebufferCreateInfo
+  [[nodiscard]] auto CreateGBufferFrameBufferInfo() -> glr::FramebufferCreateInfo
   {
     auto&      window   = glr::ServiceLocator::GetInstance().Get<glr::WindowService>();
-    auto const window_w = window.GetWindowWidth();
-    auto const window_h = window.GetWindowHeight();
+    auto const window_w = window.GetWidth();
+    auto const window_h = window.GetHeight();
     auto       info     = glr::FramebufferCreateInfo{};
 
     info.width          = window_w;
@@ -75,20 +75,48 @@ namespace
     return info;
   };
 
+  [[nodiscard]] auto CreateLightingFrameBufferInfo() -> glr::FramebufferCreateInfo
+  {
+    auto& window = glr::ServiceLocator::GetInstance().Get<glr::WindowService>();
+    auto  info   = glr::FramebufferCreateInfo{};
+    info.width   = window.GetWidth();
+    info.height  = window.GetHeight();
+    info.color_attachments[0] = glr::FramebufferAttachmentCreateInfo{
+      .format = glr::TextureFormatType::Rgba8unorm,
+      .width  = 0,
+      .height = 0,
+      .slot   = glr::FramebufferSlotType::HDRColor
+    };
+    info.use_depthstencil = false;
+    return info;
+  }
+
 }
 
 namespace glr
 {
 
   RenderingSystem::RenderingSystem()
-    : _vao{"Dummy VertexArray"}
-    , _gbuffer_pipeline("Gbuffer GraphicsPipeline")
-    , _gbuffer_frame_buffer(CreateGBufferInfo(), "Gbuffer FrameBuffer")
-    , _indirect_buffer(10, "Indirect Command Buffer")
-    , _instance_buffer(10, "Instance Data Buffer")
-    , _camera_buffer(1, "Camera Data Buffer")
-    , _material_buffer(10, "GlobalMaterials Buffer")
-    , _draw_material_indices_buffer(256, "DrawMaterialIndices")
+    :
+    _geometry
+    {
+      .vao                          = {"Geometry VertexArray"},
+      .pipeline                     = {"Gbuffer GraphicsPipeline"},
+      .frame_buffer                 = {CreateGBufferFrameBufferInfo(), "Gbuffer FrameBuffer"},
+      .indirect_buffer              = {10, "Indirect Command Buffer"},
+      .instance_buffer              = {10, "Instance Data Buffer"},
+      .camera_buffer                = {1, "Camera Data Buffer"},
+      .material_buffer              = {10, "GlobalMaterials Buffer"},
+      .draw_material_indices_buffer = {256, "DrawMaterialIndices"}     
+    }
+    ,
+    _lighting
+    {
+      .vao                             = {"Lighting VertexArray"},
+      .pipeline                        = {"Lighting GraphicsPipeline"},
+      .frame_buffer                    = {CreateLightingFrameBufferInfo(), "Lighting FrameBuffer"},
+      .geometry_bindless_handle_buffer = {4, "Lighting GbufferHandles"}
+    }
   {
     glEnable(GL_DEPTH_TEST);
 
@@ -98,21 +126,31 @@ namespace glr
     auto& gbuffer_vert_shader = shader_manager.GetVertexShader("gbuffer");
     auto& gbuffer_frag_shader = shader_manager.GetFragmentShader("gbuffer");
 
-    
-
-    _gbuffer_pipeline
+    _geometry.pipeline
       .SetVertexShader(gbuffer_vert_shader)
-      .SetFragmentShader(gbuffer_frag_shader)
+      .SetFragmentShader(gbuffer_frag_shader);
+
+    _geometry.vao.BuildSettings()
+      .BindAs<BufferType::ShaderStorage>(mesh_manager.GetVertexBuffer(), 0)
+      .BindAs<BufferType::ShaderStorage>(_geometry.camera_buffer, 1)
+      .BindAs<BufferType::ShaderStorage>(_geometry.instance_buffer, 2)
+      .BindAs<BufferType::ShaderStorage>(_geometry.draw_material_indices_buffer, 3)
+      .BindAs<BufferType::ShaderStorage>(_geometry.material_buffer, 4)
+      .BindAs<BufferType::Index>(mesh_manager.GetIndexBuffer())
+      .BindAs<BufferType::DrawIndirect>(_geometry.indirect_buffer)
+      .Apply()
       .Activate();
 
-    _vao.BuildSettings()
-      .BindAs<BufferType::ShaderStorage>(mesh_manager.GetVertexBuffer(), 0)
-      .BindAs<BufferType::ShaderStorage>(_camera_buffer, 1)
-      .BindAs<BufferType::ShaderStorage>(_instance_buffer, 2)
-      .BindAs<BufferType::ShaderStorage>(_draw_material_indices_buffer, 3)
-      .BindAs<BufferType::ShaderStorage>(_material_buffer, 4)
-      .BindAs<BufferType::Index>(mesh_manager.GetIndexBuffer())
-      .BindAs<BufferType::DrawIndirect>(_indirect_buffer)
+
+    auto& lighting_vert_shader = shader_manager.GetVertexShader("lighting");
+    auto& lighting_frag_shader = shader_manager.GetFragmentShader("lighting");
+
+    _lighting.pipeline
+      .SetVertexShader(lighting_vert_shader)
+      .SetFragmentShader(lighting_frag_shader);
+
+    _lighting.vao.BuildSettings()
+      .BindAs<BufferType::ShaderStorage>(_lighting.geometry_bindless_handle_buffer, 5)
       .Apply()
       .Activate();
 
@@ -122,15 +160,15 @@ namespace glr
 
   auto RenderingSystem::Invoke() -> void
   {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    if (_state.gbuffer_pass) RenderGBuffer();
+    if (_state.gbuffer_pass) RenderGBufferPass();
+    RenderLightingPass();
   }
 
   auto RenderingSystem::BuildGlobalMaterials() -> void
   {
     auto& res_ldr = ServiceLocator::GetInstance().Get<ResourceLoaderService>();
     auto& tex_mgr = ServiceLocator::GetInstance().Get<TextureManagerService>();
-    _material_buffer.Clear();
+    _geometry.material_buffer.Clear();
 
     for (auto const& mat : res_ldr.GetGlobalMaterial())
     {
@@ -151,7 +189,7 @@ namespace glr
       {
         gpu.metallic_handle = tex->GetBindlessHandle();
       }
-      _material_buffer.Append(gpu);
+      _geometry.material_buffer.Append(gpu);
     }
   }
 
@@ -172,17 +210,19 @@ namespace glr
     auto proj_mat = projection.GetMatrix();
 
     auto camera_data = CameraData{view_mat, proj_mat};
-    _camera_buffer.WriteData(std::as_bytes(std::span{&camera_data, 1}));
+    _geometry.camera_buffer.WriteData(std::as_bytes(std::span{&camera_data, 1}));
   }
 
-  auto RenderingSystem::RenderGBuffer() -> void
+  auto RenderingSystem::RenderGBufferPass() -> void
   {
     [[maybe_unused]] auto& res_ldr         = ServiceLocator::GetInstance().Get<ResourceLoaderService>();
     [[maybe_unused]] auto& mesh_manager    = ServiceLocator::GetInstance().Get<MeshManagerService>();
     [[maybe_unused]] auto& texture_manager = ServiceLocator::GetInstance().Get<TextureManagerService>();
+    [[maybe_unused]] auto& window          = ServiceLocator::GetInstance().Get<WindowService>();
     auto& reg             = ServiceLocator::GetInstance().Get<SceneManagerService>().GetActiveScene().registry;
 
-    _gbuffer_frame_buffer.Bind();
+    _geometry.frame_buffer.Bind();
+    glViewport(0, 0, window.GetWidth(), window.GetHeight());
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     auto view = reg.view<Component::MeshAsset, Component::Transform>();
@@ -220,7 +260,9 @@ namespace glr
 
       for (auto i : InRangeOf(0zu, mesh_views.size()))
       {
-        grouped[{mesh.mesh_tag, i}].push_back({model_matrix});
+        auto const& submesh      = mesh_views[i];
+        auto const  final_matrix = model_matrix * submesh.node_transform;
+        grouped[{mesh.mesh_tag, i}].push_back({final_matrix});
       }
 
     }
@@ -230,19 +272,19 @@ namespace glr
       return;
     }
 
-    _indirect_buffer.Clear();
-    _instance_buffer.Clear();
-    _draw_material_indices_buffer.Clear();
+    _geometry.indirect_buffer.Clear();
+    _geometry.instance_buffer.Clear();
+    _geometry.draw_material_indices_buffer.Clear();
 
     for (auto const& [key, model_matrices] : grouped)
     {
       auto const  mesh_views = mesh_manager.GetMeshData(key.tag);
       auto const& submesh    = mesh_views[key.sub_idx];
 
-      _draw_material_indices_buffer.Append(submesh.material_index);
+      _geometry.draw_material_indices_buffer.Append(submesh.material_index);
 
-      auto const base_instance = static_cast<u32>(_instance_buffer.Size());
-      _instance_buffer.Append(model_matrices);
+      auto const base_instance = static_cast<u32>(_geometry.instance_buffer.Size());
+      _geometry.instance_buffer.Append(model_matrices);
 
       auto cmd = DrawIndirectCommand
       {
@@ -253,21 +295,21 @@ namespace glr
         .base_instance  = base_instance
       };
 
-      _indirect_buffer.Append(cmd);
+      _geometry.indirect_buffer.Append(cmd);
     }
 
     UpdateCameraBuffer();
 
-    _gbuffer_pipeline.Activate();
+    _geometry.pipeline.Activate();
 
-    _vao.BuildSettings()
+    _geometry.vao.BuildSettings()
       .BindAs<BufferType::ShaderStorage>(mesh_manager.GetVertexBuffer(), 0)
-      .BindAs<BufferType::ShaderStorage>(_camera_buffer, 1)
-      .BindAs<BufferType::ShaderStorage>(_instance_buffer, 2)
-      .BindAs<BufferType::ShaderStorage>(_draw_material_indices_buffer, 3)
-      .BindAs<BufferType::ShaderStorage>(_material_buffer, 4)
+      .BindAs<BufferType::ShaderStorage>(_geometry.camera_buffer, 1)
+      .BindAs<BufferType::ShaderStorage>(_geometry.instance_buffer, 2)
+      .BindAs<BufferType::ShaderStorage>(_geometry.draw_material_indices_buffer, 3)
+      .BindAs<BufferType::ShaderStorage>(_geometry.material_buffer, 4)
       .BindAs<BufferType::Index>(mesh_manager.GetIndexBuffer())
-      .BindAs<BufferType::DrawIndirect>(_indirect_buffer)
+      .BindAs<BufferType::DrawIndirect>(_geometry.indirect_buffer)
       .Apply()
       .Activate();
 
@@ -275,22 +317,57 @@ namespace glr
         GL_TRIANGLES,
         GL_UNSIGNED_INT,
         nullptr,
-        _indirect_buffer.Size(),
+        _geometry.indirect_buffer.Size(),
         0
     );
 
-    _gbuffer_frame_buffer.UnBind();
+    _geometry.frame_buffer.UnBind();
+
+
+  }
+
+  auto RenderingSystem::RenderLightingPass() -> void
+  {
+    auto& window = glr::ServiceLocator::GetInstance().Get<glr::WindowService>();
+
+    _lighting.frame_buffer.Bind();
+    glViewport(0, 0, window.GetWidth(), window.GetHeight());
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    auto* albedo   = _geometry.frame_buffer.TryGetAttachment(FramebufferSlotType::Albedo);
+    auto* normal   = _geometry.frame_buffer.TryGetAttachment(FramebufferSlotType::Normal);
+    auto* position = _geometry.frame_buffer.TryGetAttachment(FramebufferSlotType::Position);
+    auto* material = _geometry.frame_buffer.TryGetAttachment(FramebufferSlotType::Material);
+
+    _lighting.geometry_bindless_handle_buffer.Clear();
+
+    _lighting.geometry_bindless_handle_buffer.Append(albedo   ? albedo->GetBindlessHandle()   : 0);
+    _lighting.geometry_bindless_handle_buffer.Append(normal   ? normal->GetBindlessHandle()   : 0);
+    _lighting.geometry_bindless_handle_buffer.Append(position ? position->GetBindlessHandle() : 0);
+    _lighting.geometry_bindless_handle_buffer.Append(material ? material->GetBindlessHandle() : 0);
+
+
+    _lighting.vao.BuildSettings()
+      .BindAs<BufferType::ShaderStorage>(_lighting.geometry_bindless_handle_buffer, 5)
+      .Apply()
+      .Activate();
+    
+    _lighting.pipeline.Activate();
+
+    ::glDrawArrays(GL_TRIANGLES, 0, 3); // dummy draw call
+    
+    _lighting.frame_buffer.UnBind();
 
     // Before the blit, set which attachment to read from
-    glNamedFramebufferReadBuffer(_gbuffer_frame_buffer.GetID(), GL_COLOR_ATTACHMENT0); // albedo
-    
-    auto&      window   = glr::ServiceLocator::GetInstance().Get<glr::WindowService>();
+    glNamedFramebufferReadBuffer(_lighting.frame_buffer.GetID(), GL_COLOR_ATTACHMENT0); // albedo
+                                                                                        //
     // Then blit
-    glBlitNamedFramebuffer(_gbuffer_frame_buffer.GetID(), 0,
-                            0, 0, window.GetWindowWidth(), window.GetWindowHeight(),
-                            0, 0, window.GetWindowWidth(), window.GetWindowHeight(),
+    glBlitNamedFramebuffer(_lighting.frame_buffer.GetID(), 0,
+                            0, 0, window.GetWidth(), window.GetHeight(),
+                            0, 0, window.GetWidth(), window.GetHeight(),
                             GL_COLOR_BUFFER_BIT,
                             GL_NEAREST);
+
   }
 
 }

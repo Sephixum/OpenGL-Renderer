@@ -14,8 +14,6 @@ namespace glr
   {
     [[maybe_unused]] static auto _ = []
     {
-      ::glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
-
       if (::glfwInit() == GLFW_FALSE)
       {
         throw Exception{"Failed to init GLFW"};
@@ -49,11 +47,19 @@ namespace glr
       throw Exception{"Failed to load glad"};
     }
     ::glViewport(0, 0, width, height);
+    ::glEnable(GL_DEBUG_OUTPUT);
+    ::glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    ::glDebugMessageCallback([](GLenum, GLenum, GLuint,
+        GLenum severity, GLsizei, const GLchar* message, const void*)
+    {
+        if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) return;
+        std::println("[GL Debug] {}", message);
+        __builtin_trap(); // ← breaks in debugger at exact call site
+    }, nullptr);
 
     ::glfwSetWindowSizeCallback(_handle, 
     [](::GLFWwindow*, int w, int h)
     {
-      ::glViewport(0, 0, w, h);
       Application::GetInstance().GetEventBus().trigger<Event::Resize>({w, h});
     });
 
@@ -69,7 +75,6 @@ namespace glr
       Application::GetInstance().GetEventBus().trigger<Event::MouseButton>({button, action, mods});
     });
 
-    // typedef void (* GLFWkeyfun)(GLFWwindow* window, int key, int scancode, int action, int mods);
     ::glfwSetKeyCallback(_handle,
     [](::GLFWwindow*, int key, int scancode, int action, int mods)
     {
@@ -100,14 +105,14 @@ namespace glr
 
 
 
-  auto WindowService::GetWindowWidth()  const -> u32
+  auto WindowService::GetWidth()  const -> u32
   {
     auto w = i32{};
     glfwGetWindowSize(_handle, &w, nullptr);
     return w;
   }
 
-  auto WindowService::GetWindowHeight() const -> u32
+  auto WindowService::GetHeight() const -> u32
   {
     auto h = i32{};
     glfwGetWindowSize(_handle, nullptr, &h);

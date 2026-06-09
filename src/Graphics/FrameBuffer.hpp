@@ -64,6 +64,8 @@ namespace glr
     {
       TextureFormatType   format;
       FramebufferSlotType slot;
+      u32                 width  = 0;
+      u32                 height = 0;
     };
 
     struct ColorAttachment
@@ -79,7 +81,6 @@ namespace glr
     u32                                           _height;
     std::array<std::optional<ColorAttachment>, 8> _attachments;
     std::optional<Texture2D>                      _depth_texture;
-    bool                                          _use_depthstencil;
     std::string                                   _name;
 
     auto OnResize(Event::Resize const& e) -> void;
@@ -96,6 +97,8 @@ namespace glr
       [[nodiscard]] auto TryGetDepthStencil() const -> Texture2D const*;
       [[nodiscard]] auto GetDepthStencil()    const -> Texture2D const&;
 
+      [[nodiscard]] auto GetWidth()  const -> u32 { return _width;  }
+      [[nodiscard]] auto GetHeight() const -> u32 { return _height; }
   };
 
 }

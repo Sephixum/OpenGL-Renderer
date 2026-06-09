@@ -55,10 +55,12 @@ namespace glr
   Texture2D::Texture(Texture2DCreateInfo const& info, std::string_view name)
     : _width{info.width}
     , _height{info.height}
+    , _sampler{info.sampler}
+    , _format{info.format}
     , _name{name}
   {
-    _id              = {0u , [](auto e){::glDeleteTextures(1, &e);}};
     _bindless_handle = {0zu, [](auto e){::glMakeTextureHandleNonResidentARB(e);}};
+    _id              = {0u , [](auto e){::glDeleteTextures(1, &e);}};
     ::glCreateTextures(GL_TEXTURE_2D, 1, &_id);
     ::glObjectLabel(GL_TEXTURE, _id, name.length(), name.data());
 
@@ -101,5 +103,30 @@ namespace glr
     _bindless_handle.Reset(::glGetTextureSamplerHandleARB(_id, info.sampler.GetID()));
     ::glMakeTextureHandleResidentARB(_bindless_handle);
   }
+
+  
+  auto Texture2D::Resize(u32 width, u32 height) -> void
+  {
+    if (::glIsTextureHandleResidentARB(_bindless_handle))
+    {
+      ::glMakeTextureHandleNonResidentARB(_bindless_handle);
+    }
+    _bindless_handle.Release();
+
+    auto old_id = _id.Release();
+    ::glDeleteTextures(1, &old_id);
+
+    ::glCreateTextures(GL_TEXTURE_2D, 1, &_id);
+    ::glObjectLabel(GL_TEXTURE, _id, _name.length(), _name.data());
+    ::glTextureStorage2D(_id, 1, std::to_underlying(_format), width, height);
+
+    _bindless_handle.Reset(::glGetTextureSamplerHandleARB(_id, _sampler.GetID()));
+    ::glMakeTextureHandleResidentARB(_bindless_handle);
+
+    _width  = width;
+    _height = height;
+  }
+
+
 
 }

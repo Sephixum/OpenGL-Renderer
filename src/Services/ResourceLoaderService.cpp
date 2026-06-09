@@ -23,8 +23,10 @@
 #include <filesystem>
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
+#include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/quaternion_geometric.hpp>
 #include <glm/ext/scalar_constants.hpp>
+#include <glm/glm.hpp>
 #include <limits>
 #include <ranges>
 #include <stb_image.h>
@@ -229,22 +231,23 @@ namespace glr
     {
       auto md = MeshData{};
       md.material_index = global_mat_index;
-
       md.vertices.reserve(mesh->mNumVertices);
+
       for (auto i : InRangeOf(0zu, mesh->mNumVertices))
       { 
         auto v = VertexData{};
         if (mesh->HasPositions())
         {
-          v.position = (glm::vec3(mesh->mVertices[i].x,
-                                  mesh->mVertices[i].y,
-                                  mesh->mVertices[i].z) * scale);
+          // NOTE: no scale here anymore — scale is baked into node_transform
+          v.position = glm::vec3(mesh->mVertices[i].x,
+                                 mesh->mVertices[i].y,
+                                 mesh->mVertices[i].z);
         }
         if (mesh->HasNormals())
         {
-          v.normal = (glm::vec3(mesh->mNormals[i].x,
-                                mesh->mNormals[i].y,
-                                mesh->mNormals[i].z));
+          v.normal = glm::vec3(mesh->mNormals[i].x,
+                               mesh->mNormals[i].y,
+                               mesh->mNormals[i].z);
         }
         if (mesh->HasTextureCoords(0))
         {
@@ -267,25 +270,42 @@ namespace glr
       return md;
     };
 
-    auto all_meshes   = std::vector<MeshData>{};
-    auto process_node = [&](this auto&& self, aiNode* node) -> void
+    auto all_meshes = std::vector<MeshData>{};
+
+    auto process_node = [&](this auto&& self, aiNode* node, glm::mat4 parent_transform) -> void
     {
+      // convert assimp row-major to glm column-major
+      auto const& m = node->mTransformation;
+      auto const local_transform = glm::mat4{
+        m.a1, m.b1, m.c1, m.d1,
+        m.a2, m.b2, m.c2, m.d2,
+        m.a3, m.b3, m.c3, m.d3,
+        m.a4, m.b4, m.c4, m.d4
+      };
+
+      auto const world_transform = parent_transform * local_transform;
+
+      // bake scale into translation only, keep rotation/scale columns intact
+      auto const scale_mat        = glm::scale(glm::mat4{1.0f}, glm::vec3{scale});
+      auto const scaled_transform = scale_mat * world_transform;
+
       for (auto i : InRangeOf(0zu, node->mNumMeshes))
       {
         u32         mesh_index       = node->mMeshes[i];
         auto const* ai_mesh          = scene->mMeshes[mesh_index];
         u32         global_mat_index = material_base_index + ai_mesh->mMaterialIndex;
-        all_meshes.push_back(process_mesh(ai_mesh, global_mat_index));
+        auto        md               = process_mesh(ai_mesh, global_mat_index);
+        md.node_transform            = scaled_transform;
+        all_meshes.push_back(std::move(md));
       }
 
       for (auto i : InRangeOf(0zu, node->mNumChildren))
       {
-        self(node->mChildren[i]);
+        self(node->mChildren[i], world_transform);
       }
     };
 
-    process_node(scene->mRootNode);
-
+    process_node(scene->mRootNode, glm::mat4{1.0f});
     mesh_mgr.LoadModelData(name, all_meshes);
   }
 

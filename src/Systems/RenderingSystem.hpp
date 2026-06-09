@@ -54,19 +54,31 @@ namespace glr
 
     EventSink _material_buffer_rebuild_sink = {};
 
-    VertexArray      _vao;
+    struct 
+    {
+      VertexArray                                  vao;
+      GraphicsPipeline                             pipeline;
+      FrameBuffer                                  frame_buffer;
+      DynamicPersistantBuffer<DrawIndirectCommand> indirect_buffer;
+      DynamicPersistantBuffer<InstanceData>        instance_buffer;
+      DynamicPersistantBuffer<CameraData>          camera_buffer;
+      DynamicPersistantBuffer<GPUMaterial>         material_buffer;
+      DynamicPersistantBuffer<u32>                 draw_material_indices_buffer;
+    }
+    _geometry;
 
-    GraphicsPipeline _gbuffer_pipeline;
-    FrameBuffer      _gbuffer_frame_buffer;
+    struct
+    {
+      VertexArray                         vao;
+      GraphicsPipeline                    pipeline;
+      FrameBuffer                         frame_buffer;
+      DynamicPersistantBuffer<::GLuint64> geometry_bindless_handle_buffer;
+    }
+    _lighting;
 
-    DynamicPersistantBuffer<DrawIndirectCommand> _indirect_buffer;
-    DynamicPersistantBuffer<InstanceData>        _instance_buffer;
-    DynamicPersistantBuffer<CameraData>          _camera_buffer;
-    DynamicPersistantBuffer<GPUMaterial>         _material_buffer;
-    DynamicPersistantBuffer<u32>                 _draw_material_indices_buffer;
 
-
-    auto RenderGBuffer() -> void;
+    auto RenderGBufferPass() -> void;
+    auto RenderLightingPass() -> void;
     auto UpdateCameraBuffer() -> void;
     auto BuildGlobalMaterials() -> void;
 

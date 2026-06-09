@@ -33,7 +33,8 @@ namespace glr
         .index_count    = static_cast<std::uint32_t>(mesh.indices.size()),
         .vertex_offset  = static_cast<std::uint32_t>(vert_start),
         .vertex_count   = static_cast<std::uint32_t>(mesh.vertices.size()),
-        .material_index = mesh.material_index
+        .material_index = mesh.material_index,
+        .node_transform = mesh.node_transform
       });
     }
 
