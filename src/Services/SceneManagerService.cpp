@@ -1,5 +1,6 @@
 #include "SceneManagerService.hpp"
 #include "Components/Components.hpp"
+#include "Utils/Error.hpp"
 
 #include <entt/entt.hpp>
 
@@ -40,6 +41,25 @@ namespace glr
     _active_scene = &scene;
   }
 
+  auto SceneManagerService::GetScene(std::string_view name) -> Scene&
+  {
+    auto iter = _scenes.find(std::string{name});
+    Expect(iter != _scenes.end(), "Scene {} not found !", name);
+    return iter->second;
+  }
+
+  auto SceneManagerService::TryGetScene(std::string_view name) -> Scene*
+  {
+    auto iter = _scenes.find(std::string{name});
+
+    if (iter == _scenes.end())
+    {
+      return nullptr;
+    }
+
+    return &(iter->second);
+  }
+
   auto Scene::GetActiveCamera() -> entt::entity
   {
 
@@ -54,6 +74,13 @@ namespace glr
     }
 
     return *view.begin();
+  }
+
+  auto Scene::CreateEntity(std::string_view name) -> entt::entity
+  {
+    auto e = registry.create();
+    registry.emplace<Component::Name>(e, std::string{name});
+    return e;
   }
 
 }

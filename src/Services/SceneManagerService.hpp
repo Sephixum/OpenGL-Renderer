@@ -13,14 +13,15 @@ namespace glr
   {
     entt::registry registry = {};
 
-    auto GetActiveCamera() -> entt::entity;
+    [[nodiscard]] auto GetActiveCamera()                                      -> entt::entity;
+    [[nodiscard]] auto CreateEntity(std::string_view name = "Unnamed Entity") -> entt::entity;
   };
 
 
   class SceneManagerService : public IService
   {
-    std::flat_map<std::string, Scene> _scenes       = {};
-    Scene*                            _active_scene = nullptr;
+    std::unordered_map<std::string, Scene> _scenes       = {};
+    Scene*                                 _active_scene = nullptr;
 
     public:
       virtual auto OnInit()     -> void override;
@@ -30,6 +31,9 @@ namespace glr
       [[nodiscard]] auto GetActiveScene()     -> Scene&;
       auto CreateScene(std::string_view name) -> Scene&;
       auto SetActiveScene(Scene& scene) -> void;
+
+      [[nodiscard]] auto GetScene(std::string_view name)    -> Scene&;
+      [[nodiscard]] auto TryGetScene(std::string_view name) -> Scene*;
   };
 
 }

@@ -1,13 +1,14 @@
 #pragma once
 
+#include <optional>
 #include <string>
 
 namespace glr::Component
 {
 
-  struct Tag
+  struct ModelInstance
   {
-    std::string str;
+    std::string mesh_tag;
   };
 
 }
