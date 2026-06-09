@@ -23,6 +23,21 @@ namespace glr::Component
     {
       return glm::inverse(GetMatrix());
     }
+
+    [[nodiscard]] auto Forward() const -> glm::vec3
+    {
+        return rotation * glm::vec3(0,0,-1);
+    }
+    
+    [[nodiscard]] auto Right() const -> glm::vec3
+    {
+        return rotation * glm::vec3(1,0,0);
+    }
+    
+    [[nodiscard]] auto Up() const -> glm::vec3
+    {
+        return rotation * glm::vec3(0,1,0);
+    }
   };
 
 }
