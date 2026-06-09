@@ -17,22 +17,28 @@ namespace glr
 
   struct DrawIndirectCommand
   {
-    std::uint32_t count;
-    std::uint32_t instance_count;
-    std::uint32_t first_index;
-    std::int32_t  base_vertex;
-    std::uint32_t base_instance;
+    u32 count;
+    u32 instance_count;
+    u32 first_index;
+    i32 base_vertex;
+    u32 base_instance;
   };
 
-  struct alignas(16) GPUMaterial 
+  struct alignas(16) GPUMaterialData 
   {
-    ::GLuint64 albedo_handle    = {};
-    ::GLuint64 normal_handle    = {};
-    ::GLuint64 roughness_handle = {};
-    ::GLuint64 metallic_handle  = {};
+    u64 albedo_handle    = {};
+    u64 normal_handle    = {};
+    u64 roughness_handle = {};
+    u64 metallic_handle  = {};
   };
 
-  struct alignas(16) InstanceData
+  struct MeshFlattened
+  {
+    u32       mesh_index;
+    glm::mat4 world_transform = glm::mat4(1.0f);
+  };
+
+  struct alignas(16) MeshInstanceData
   {
     glm::mat4 model = glm::mat4(1.0f);
   };
@@ -60,9 +66,9 @@ namespace glr
       GraphicsPipeline                             pipeline;
       FrameBuffer                                  frame_buffer;
       DynamicPersistantBuffer<DrawIndirectCommand> indirect_buffer;
-      DynamicPersistantBuffer<InstanceData>        instance_buffer;
+      DynamicPersistantBuffer<MeshInstanceData>    instance_buffer;
       DynamicPersistantBuffer<CameraData>          camera_buffer;
-      DynamicPersistantBuffer<GPUMaterial>         material_buffer;
+      DynamicPersistantBuffer<GPUMaterialData>         material_buffer;
       DynamicPersistantBuffer<u32>                 draw_material_indices_buffer;
     }
     _geometry;

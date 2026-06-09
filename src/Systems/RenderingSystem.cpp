@@ -28,68 +28,14 @@
 #include <span>
 #include <unordered_map>
 #include <entt/entt.hpp>
+#include <vector>
 
-namespace
+namespace helper
 {
 
-  [[nodiscard]] auto CreateGBufferFrameBufferInfo() -> glr::FramebufferCreateInfo
-  {
-    auto&      window   = glr::ServiceLocator::GetInstance().Get<glr::WindowService>();
-    auto const window_w = window.GetWidth();
-    auto const window_h = window.GetHeight();
-    auto       info     = glr::FramebufferCreateInfo{};
-
-    info.width          = window_w;
-    info.height         = window_h;
-
-    info.color_attachments[0] = glr::FramebufferAttachmentCreateInfo{
-      .format = glr::TextureFormatType::Rgba8unorm,
-      .width  = 0,
-      .height = 0,
-      .slot   = glr::FramebufferSlotType::Albedo
-    };
-
-    info.color_attachments[1] = glr::FramebufferAttachmentCreateInfo{
-      .format = glr::TextureFormatType::Rgba16f,
-      .width  = 0,
-      .height = 0,
-      .slot   = glr::FramebufferSlotType::Normal
-    };
-
-    info.color_attachments[2] = glr::FramebufferAttachmentCreateInfo{
-      .format = glr::TextureFormatType::Rgba32f,
-      .width  = 0,
-      .height = 0,
-      .slot   = glr::FramebufferSlotType::Position
-    };
-
-    info.color_attachments[3] = glr::FramebufferAttachmentCreateInfo{
-      .format = glr::TextureFormatType::Rg8unorm,
-      .width  = 0,
-      .height = 0,
-      .slot   = glr::FramebufferSlotType::Material
-    };
-
-    info.use_depthstencil = true;
-
-    return info;
-  };
-
-  [[nodiscard]] auto CreateLightingFrameBufferInfo() -> glr::FramebufferCreateInfo
-  {
-    auto& window = glr::ServiceLocator::GetInstance().Get<glr::WindowService>();
-    auto  info   = glr::FramebufferCreateInfo{};
-    info.width   = window.GetWidth();
-    info.height  = window.GetHeight();
-    info.color_attachments[0] = glr::FramebufferAttachmentCreateInfo{
-      .format = glr::TextureFormatType::Rgba8unorm,
-      .width  = 0,
-      .height = 0,
-      .slot   = glr::FramebufferSlotType::HDRColor
-    };
-    info.use_depthstencil = false;
-    return info;
-  }
+  [[nodiscard]] auto CreateGBufferFrameBufferInfo()                                                   -> glr::FramebufferCreateInfo;
+  [[nodiscard]] auto CreateLightingFrameBufferInfo()                                                  -> glr::FramebufferCreateInfo;
+  [[nodiscard]] auto FlattenModelMeshes(glr::NodeData const& node, glm::mat4 const& parent_transform) -> std::vector<glr::MeshFlattened>;
 
 }
 
@@ -102,7 +48,7 @@ namespace glr
     {
       .vao                          = {"Geometry VertexArray"},
       .pipeline                     = {"Gbuffer GraphicsPipeline"},
-      .frame_buffer                 = {CreateGBufferFrameBufferInfo(), "Gbuffer FrameBuffer"},
+      .frame_buffer                 = {helper::CreateGBufferFrameBufferInfo(), "Gbuffer FrameBuffer"},
       .indirect_buffer              = {10, "Indirect Command Buffer"},
       .instance_buffer              = {10, "Instance Data Buffer"},
       .camera_buffer                = {1, "Camera Data Buffer"},
@@ -114,7 +60,7 @@ namespace glr
     {
       .vao                             = {"Lighting VertexArray"},
       .pipeline                        = {"Lighting GraphicsPipeline"},
-      .frame_buffer                    = {CreateLightingFrameBufferInfo(), "Lighting FrameBuffer"},
+      .frame_buffer                    = {helper::CreateLightingFrameBufferInfo(), "Lighting FrameBuffer"},
       .geometry_bindless_handle_buffer = {4, "Lighting GbufferHandles"}
     }
   {
@@ -172,7 +118,7 @@ namespace glr
 
     for (auto const& mat : res_ldr.GetGlobalMaterial())
     {
-      auto gpu = GPUMaterial{};
+      auto gpu = GPUMaterialData{};
       if (auto* tex = (not mat.albedo_tag.empty() ? tex_mgr.TeyGetTexture2D(mat.albedo_tag) : nullptr))
       {
         gpu.albedo_handle = tex->GetBindlessHandle();
@@ -234,35 +180,45 @@ namespace glr
 
     struct SubMeshKey 
     {
-      std::string tag = {};
-      std::size_t sub_idx  = {};
+      std::string tag     = {};
+      u64         sub_idx = {};
       auto operator<=>(SubMeshKey const&) const = default;
     };
 
     auto sub_mesh_key_hash_fn = [](SubMeshKey const& k) static -> std::size_t
     {
-      std::size_t h1 = std::hash<std::string>{}(k.tag);
-      std::size_t h2 = std::hash<std::size_t>{}(k.sub_idx);
+      auto h1 = std::hash<std::string>{}(k.tag);
+      auto h2 = std::hash<u64>{}(k.sub_idx);
       return h1 ^ (h2 << 1);
     };
 
-    auto grouped = std::unordered_map<SubMeshKey, std::vector<InstanceData>, decltype(sub_mesh_key_hash_fn)>{};
+    auto grouped = std::unordered_map
+      <
+        SubMeshKey,                       // DataType
+        std::vector<MeshInstanceData>,    // Value
+        decltype(sub_mesh_key_hash_fn)    // HashFunction
+      >
+      {0, sub_mesh_key_hash_fn};
 
-    for (auto [entity, mesh, transform] : view.each())
+    for (auto [e, e_mesh, e_transform] : view.each())
     {
-      if (not mesh_manager.IsModelLoaded(mesh.mesh_tag))
+      if (not mesh_manager.IsModelLoaded(e_mesh.mesh_tag))
       {
         continue;
       }
 
-      auto const mesh_views   = mesh_manager.GetMeshData(mesh.mesh_tag);
-      auto const model_matrix = transform.GetMatrix();
+      auto const& model_view   = mesh_manager.GetModel(e_mesh.mesh_tag);
+      auto const  model_matrix = e_transform.GetMatrix();
 
-      for (auto i : InRangeOf(0zu, mesh_views.size()))
+      auto const flattened_meshes = helper::FlattenModelMeshes(model_view.root, model_matrix);
+
+      log::Info(
+          "Flattened mesh count = {}",
+          flattened_meshes.size());
+
+      for (auto const& f : flattened_meshes)
       {
-        auto const& submesh      = mesh_views[i];
-        auto const  final_matrix = model_matrix * submesh.node_transform;
-        grouped[{mesh.mesh_tag, i}].push_back({final_matrix});
+        grouped[{e_mesh.mesh_tag, f.mesh_index}].push_back({f.world_transform});
       }
 
     }
@@ -278,8 +234,8 @@ namespace glr
 
     for (auto const& [key, model_matrices] : grouped)
     {
-      auto const  mesh_views = mesh_manager.GetMeshData(key.tag);
-      auto const& submesh    = mesh_views[key.sub_idx];
+      auto const  model_view = mesh_manager.GetModel(key.tag);
+      auto const& submesh    = model_view.meshes[key.sub_idx];
 
       _geometry.draw_material_indices_buffer.Append(submesh.material_index);
 
@@ -370,5 +326,92 @@ namespace glr
 
   }
 
+}
+
+auto helper::CreateGBufferFrameBufferInfo() -> glr::FramebufferCreateInfo
+{
+  auto&      window   = glr::ServiceLocator::GetInstance().Get<glr::WindowService>();
+  auto const window_w = window.GetWidth();
+  auto const window_h = window.GetHeight();
+  auto       info     = glr::FramebufferCreateInfo{};
+
+  info.width          = window_w;
+  info.height         = window_h;
+
+  info.color_attachments[0] = glr::FramebufferAttachmentCreateInfo{
+    .format = glr::TextureFormatType::Rgba8unorm,
+    .width  = 0,
+    .height = 0,
+    .slot   = glr::FramebufferSlotType::Albedo
+  };
+
+  info.color_attachments[1] = glr::FramebufferAttachmentCreateInfo{
+    .format = glr::TextureFormatType::Rgba16f,
+    .width  = 0,
+    .height = 0,
+    .slot   = glr::FramebufferSlotType::Normal
+  };
+
+  info.color_attachments[2] = glr::FramebufferAttachmentCreateInfo{
+    .format = glr::TextureFormatType::Rgba32f,
+    .width  = 0,
+    .height = 0,
+    .slot   = glr::FramebufferSlotType::Position
+  };
+
+  info.color_attachments[3] = glr::FramebufferAttachmentCreateInfo{
+    .format = glr::TextureFormatType::Rg8unorm,
+    .width  = 0,
+    .height = 0,
+    .slot   = glr::FramebufferSlotType::Material
+  };
+
+  info.use_depthstencil = true;
+
+  return info;
+};
+
+auto helper::CreateLightingFrameBufferInfo() -> glr::FramebufferCreateInfo
+{
+  auto& window = glr::ServiceLocator::GetInstance().Get<glr::WindowService>();
+  auto  info   = glr::FramebufferCreateInfo{};
+  info.width   = window.GetWidth();
+  info.height  = window.GetHeight();
+  info.color_attachments[0] = glr::FramebufferAttachmentCreateInfo{
+    .format = glr::TextureFormatType::Rgba8unorm,
+    .width  = 0,
+    .height = 0,
+    .slot   = glr::FramebufferSlotType::HDRColor
+  };
+  info.use_depthstencil = false;
+  return info;
+}
+
+
+auto helper::FlattenModelMeshes(glr::NodeData const& root, glm::mat4 const& root_transform) -> std::vector<glr::MeshFlattened>
+{
+  auto result = std::vector<glr::MeshFlattened>{};
+
+  auto recurse_fn = [&result](this auto&& self, glr::NodeData const& node, glm::mat4 const& parent_transform) -> void
+  {
+    auto const world_transform = parent_transform * node.local_transform;
+
+    for (glr::u32 mesh_index : node.mesh_indices)
+    {
+      result.push_back(glr::MeshFlattened{
+          .mesh_index      = mesh_index,
+          .world_transform = world_transform
+      });
+    }
+
+    for (auto const& child : node.children)
+    {
+      self(child, world_transform);
+    }
+  };
+
+  recurse_fn(root, root_transform);
+
+  return result;
 }
 

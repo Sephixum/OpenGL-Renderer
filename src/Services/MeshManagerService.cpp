@@ -1,5 +1,7 @@
 #include "MeshManagerService.hpp"
+#include "Graphics/Model.hpp"
 #include "Utils/Error.hpp"
+#include "Utils/Log.hpp"
 #include <print>
 #include <ranges>
 #include <span>
@@ -10,69 +12,71 @@ namespace glr
   MeshManagerService::MeshManagerService()
     : _vertex_data(1024 * 1024, "Mesh Manager Vertex Buffer")
     , _index_data(1024 * 1024, "Mesh Manager Index Buffer")
-    , _mesh_lookup{}
+    , _model_lookup{}
   {
 
   }
 
-  auto MeshManagerService::LoadModelData(std::string_view name, std::span<MeshData const> meshes) -> void
+  auto MeshManagerService::LoadModelData(std::string_view name, ModelData const& model) -> void
   {
-    auto views = std::vector<MeshView>{};
-    views.reserve(meshes.size());
-
-    for (MeshData const& mesh : meshes)
+    if (IsModelLoaded(name)) 
     {
-      auto vert_start = _vertex_data.Size();
+      log::Warn("Modle with name {} already loaded !", name);
+      return;
+    }
+
+    auto runtime_model = ModelView{};
+    runtime_model.meshes.reserve(model.meshes.size());
+
+    for (MeshData const& mesh : model.meshes)
+    {
+      auto const vert_start = _vertex_data.Size();
       _vertex_data.Append(mesh.vertices);
 
-      auto idx_start = _index_data.Size();
+      auto const index_start = _index_data.Size();
       _index_data.Append(mesh.indices);
 
-      views.push_back(MeshView{
-        .index_offset   = static_cast<std::uint32_t>(idx_start),
-        .index_count    = static_cast<std::uint32_t>(mesh.indices.size()),
-        .vertex_offset  = static_cast<std::uint32_t>(vert_start),
-        .vertex_count   = static_cast<std::uint32_t>(mesh.vertices.size()),
-        .material_index = mesh.material_index,
-        .node_transform = mesh.node_transform
+      runtime_model.meshes.push_back(MeshView{
+          .index_offset   = static_cast<u32>(index_start),
+          .index_count    = static_cast<u32>(mesh.indices.size()),
+          .vertex_offset  = static_cast<u32>(vert_start),
+          .vertex_count   = static_cast<u32>(mesh.vertices.size()),
+          .material_index = mesh.material_index
       });
     }
 
-    _mesh_lookup[std::string(name)] = std::move(views);
+    runtime_model.root               = model.root;
+    runtime_model.bounds             = model.bounds;
+    _model_lookup[std::string(name)] = std::move(runtime_model);
   }
 
-  auto MeshManagerService::GetMeshData(std::string_view name) const -> std::span<MeshView const>
+  auto MeshManagerService::GetModel(std::string_view name) const -> ModelView const&
   {
-    auto it = _mesh_lookup.find(name);
-    Expect(it != _mesh_lookup.end(), "Mesh {} does not exist !!", name);
-    return {it->second.data(), it->second.size()};
+    auto iter = _model_lookup.find(std::string(name));
+    Expect(iter != _model_lookup.end(), "Model name {} not found !", name);
+    return iter->second;
   }
 
-  auto MeshManagerService::IsModelLoaded(std::string const& name) const -> bool
+  auto MeshManagerService::TryGetModel(std::string_view name) const -> ModelView const*
   {
-    return _mesh_lookup.contains(name);
+    auto iter = _model_lookup.find(std::string(name));
+    if (iter == _model_lookup.end())
+    {
+      return nullptr;
+    }
+    return &(iter->second);
   }
 
-  auto MeshManagerService::GetModelNames() const -> std::vector<std::string_view>
+  auto MeshManagerService::IsModelLoaded(std::string_view name) const -> bool
   {
-    return _mesh_lookup
-      | std::views::transform([](auto const& e) -> std::string_view const {return e.first;}) 
+    return _model_lookup.contains(name);
+  }
+
+  auto MeshManagerService::GetModelNames() const -> std::vector<std::string>
+  {
+    return _model_lookup
+      | std::views::transform([](auto const& e) -> std::string {return e.first;}) 
       | std::ranges::to<std::vector>();
-  }
-
-  auto MeshManagerService::OnInit() -> void 
-  {
-
-  }
-
-  auto MeshManagerService::OnUpdate()   -> void 
-  {
-
-  }
-
-  auto MeshManagerService::OnShutdown() -> void 
-  {
-
   }
 
 }
